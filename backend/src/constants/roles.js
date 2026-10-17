@@ -1,0 +1,21 @@
+const ROLES = {
+  CHILD: 'CHILD',
+  PARENT: 'PARENT',
+  ADMIN: 'ADMIN'
+};
+
+const CONTENT_STATUS = {
+  APPROVED: 'APPROVED',
+  BLOCKED: 'BLOCKED'
+};
+
+const ACCOUNT_STATUS = {
+  ACTIVE: 'ACTIVE',
+  DISABLED: 'DISABLED'
+};
+
+module.exports = {
+  ROLES,
+  CONTENT_STATUS,
+  ACCOUNT_STATUS
+};

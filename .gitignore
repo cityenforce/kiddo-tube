@@ -1,0 +1,50 @@
+# ============ Node.js ============
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json.bak
+.npm
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# ============ Android / Gradle ============
+*.iml
+.gradle/
+.kotlin/
+local.properties
+/local.properties
+/build/
+/captures/
+.externalNativeBuild/
+.cxx/
+debug.keystore
+*.keystore
+*.jks
+*.apk
+*.aab
+
+# ============ IntelliJ / Android Studio ============
+.idea/
+*.iws
+*.ipr
+*.hprof
+
+# ============ OS Files ============
+.DS_Store
+Thumbs.db
+
+# ============ Logs & temp ============
+logs/
+*.log
+tmp/
+temp/
+
+# ============ Build outputs ============
+dist/
+build/
+out/

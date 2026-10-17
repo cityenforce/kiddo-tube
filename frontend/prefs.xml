@@ -1,0 +1,5 @@
+﻿<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<map>
+    <boolean name='inspector_debug' value='true' />
+    <string name='debug_http_host'>10.0.2.2:8081</string>
+</map>
