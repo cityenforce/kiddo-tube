@@ -62,7 +62,7 @@ async function getChildProfilesHandler(req, res, next) {
 
 async function getHomeContentHandler(req, res, next) {
   try {
-    let { parentId } = resolveParentAndChild(req);
+    let { parentId, childId } = resolveParentAndChild(req);
     if (!parentId && req.query.parentId) {
       parentId = req.query.parentId;
     }
@@ -89,7 +89,12 @@ async function getHomeContentHandler(req, res, next) {
     }
 
     const { category, search, channel } = req.query;
-    const content = await contentService.getApprovedContent(parentId, { category, search, channel });
+    const content = await contentService.getApprovedContent(parentId, {
+      category,
+      search,
+      channel,
+      childId
+    });
     return res.status(200).json({
       success: true,
       ...content

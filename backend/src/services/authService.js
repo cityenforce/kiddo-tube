@@ -57,13 +57,18 @@ async function loginParent(identifier, password) {
     throw { statusCode: 400, message: 'Username/Email and password are required' };
   }
 
-  const parent = await db.findParentByUsernameOrEmail(identifier);
+  const clean = String(identifier).trim();
+  const parent = await db.findParentByUsernameOrEmail(clean);
   if (!parent) {
-    throw { statusCode: 401, message: 'Invalid credentials' };
+    throw { statusCode: 401, message: 'Invalid credentials. Please verify your username or email.' };
+  }
+
+  if (parent.status === ACCOUNT_STATUS.BLOCKED) {
+    throw { statusCode: 403, message: 'Your parent account has been blocked by the administrator.' };
   }
 
   if (parent.status === ACCOUNT_STATUS.DISABLED) {
-    throw { statusCode: 403, message: 'Your account has been disabled. Please contact support.' };
+    throw { statusCode: 403, message: 'Your account has been deactivated. Please contact support.' };
   }
 
   const isValid = verifyPassword(password, parent.passwordHash);
@@ -124,13 +129,23 @@ async function loginChild({ username, password, profileId }) {
     throw { statusCode: 401, message: 'Incorrect password. Ask mom or dad for help!' };
   }
 
+  if (child.status === ACCOUNT_STATUS.BLOCKED) {
+    throw { statusCode: 403, message: 'This child profile has been blocked by the administrator.' };
+  }
+  if (child.status === ACCOUNT_STATUS.DISABLED) {
+    throw { statusCode: 403, message: 'This child profile is deactivated.' };
+  }
+
   // Get parent settings to load shared daily limit
   const parent = await db.findParentById(child.parentId);
   if (!parent) {
     throw { statusCode: 404, message: 'Parent account not found' };
   }
+  if (parent.status === ACCOUNT_STATUS.BLOCKED) {
+    throw { statusCode: 403, message: 'Parent account has been blocked by the administrator.' };
+  }
   if (parent.status === ACCOUNT_STATUS.DISABLED) {
-    throw { statusCode: 403, message: 'Parent account is currently disabled.' };
+    throw { statusCode: 403, message: 'Parent account is currently deactivated.' };
   }
 
   const dailyLimitMinutes = parent.dailyLimitMinutes || 60;
@@ -191,10 +206,105 @@ async function logout(token) {
   return true;
 }
 
+const { sendPasswordResetOtpEmail } = require('./emailService');
+
+const passwordResetStore = new Map(); // email.toLowerCase() -> { otp, expiresAt, parentId }
+
+async function requestParentPasswordResetOtp(email) {
+  if (!email || !email.includes('@')) {
+    throw { statusCode: 400, message: 'Please provide a valid email address.' };
+  }
+  const cleanEmail = email.trim().toLowerCase();
+  const parent = await db.findParentByUsernameOrEmail(cleanEmail);
+  if (!parent) {
+    throw { statusCode: 404, message: 'No parent account found registered with this email.' };
+  }
+
+  // Generate 6-digit OTP
+  const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = Date.now() + 15 * 60 * 1000; // 15 mins
+
+  passwordResetStore.set(cleanEmail, {
+    otp: otpCode,
+    expiresAt,
+    parentId: parent.id
+  });
+
+  try {
+    const dbInstance = await db.getDb();
+    await dbInstance.collection('passwordResetOtps').updateOne(
+      { email: cleanEmail },
+      { $set: { email: cleanEmail, otp: otpCode, expiresAt: new Date(expiresAt), parentId: parent.id } },
+      { upsert: true }
+    );
+  } catch (dbErr) {
+    console.warn('[AuthService] Could not persist OTP in DB, using memory store:', dbErr.message);
+  }
+
+  const emailRes = await sendPasswordResetOtpEmail(parent.email, otpCode, parent.displayName || parent.username);
+  return {
+    success: true,
+    message: 'Verification code sent to your email.',
+    devOtp: emailRes.devOtp
+  };
+}
+
+async function resetParentPasswordWithOtp(email, otp, newPassword) {
+  if (!email || !otp || !newPassword) {
+    throw { statusCode: 400, message: 'Email, OTP code, and new password are required.' };
+  }
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanOtp = String(otp).trim();
+  const cleanPass = newPassword.trim();
+
+  if (cleanPass.length < 6) {
+    throw { statusCode: 400, message: 'Password must be at least 6 characters long.' };
+  }
+
+  let record = passwordResetStore.get(cleanEmail);
+  if (!record) {
+    try {
+      const dbInstance = await db.getDb();
+      const doc = await dbInstance.collection('passwordResetOtps').findOne({ email: cleanEmail });
+      if (doc && new Date(doc.expiresAt).getTime() > Date.now()) {
+        record = { otp: doc.otp, expiresAt: new Date(doc.expiresAt).getTime(), parentId: doc.parentId };
+      }
+    } catch (e) {
+      // fallback
+    }
+  }
+
+  if (!record || Date.now() > record.expiresAt) {
+    throw { statusCode: 400, message: 'Verification code has expired. Please request a new one.' };
+  }
+
+  if (record.otp !== cleanOtp) {
+    throw { statusCode: 400, message: 'Invalid verification code. Please check your email.' };
+  }
+
+  // Update password in database
+  await db.updateParent(record.parentId, {
+    passwordHash: hashPassword(cleanPass)
+  });
+
+  passwordResetStore.delete(cleanEmail);
+  try {
+    const dbInstance = await db.getDb();
+    await dbInstance.collection('passwordResetOtps').deleteOne({ email: cleanEmail });
+  } catch (e) {}
+
+  return {
+    success: true,
+    message: 'Your password has been successfully reset! You can now log in.'
+  };
+}
+
 module.exports = {
   registerParent,
   loginParent,
   loginChild,
   loginAdmin,
-  logout
+  logout,
+  requestParentPasswordResetOtp,
+  resetParentPasswordWithOtp
 };

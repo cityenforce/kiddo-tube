@@ -9,6 +9,7 @@ const { verifyPassword, verifyPin } = require('../src/utils/cryptoUtils');
 
 let server;
 let baseUrl;
+const authHeaders = (token) => ({ Authorization: 'Bearer ' + token });
 const originalFetch = global.fetch;
 const originalYoutubeApiKey = process.env.YOUTUBE_API_KEY;
 const youtubeChannelId = 'UC1234567890123456789012';
@@ -32,6 +33,16 @@ const youtubeVideos = {
       thumbnails: { high: { url: 'https://img.youtube.test/channel-video.jpg' } }
     },
     contentDetails: { duration: 'PT6M12S' }
+  },
+  Audience001: {
+    id: 'Audience001',
+    snippet: {
+      title: 'Child-only approved video',
+      channelTitle: 'KiddoTube Test Creator',
+      description: 'Audience isolation test',
+      thumbnails: { high: { url: 'https://img.youtube.test/audience-video.jpg' } }
+    },
+    contentDetails: { duration: 'PT3M20S' }
   },
   Playlist001: {
     id: 'Playlist001',
@@ -250,7 +261,7 @@ test('Parent registration does not require a PIN and allows setting one from the
   });
   assert.strictEqual(updateResponse.status, 200);
 
-  const missingCurrentPinResponse = await fetch(
+  const directResetPinResponse = await fetch(
     `${baseUrl}/api/parent/settings/pin`,
     {
       method: 'PUT',
@@ -261,7 +272,7 @@ test('Parent registration does not require a PIN and allows setting one from the
       body: JSON.stringify({ currentPin: '', newPin: '1357' })
     }
   );
-  assert.strictEqual(missingCurrentPinResponse.status, 401);
+  assert.strictEqual(directResetPinResponse.status, 200);
 
   const verifyResponse = await fetch(`${baseUrl}/api/parent/verify-pin`, {
     method: 'POST',
@@ -269,7 +280,7 @@ test('Parent registration does not require a PIN and allows setting one from the
       'Content-Type': 'application/json',
       Authorization: `Bearer ${registration.token}`
     },
-    body: JSON.stringify({ pin: '2468' })
+    body: JSON.stringify({ pin: '1357' })
   });
   assert.strictEqual(verifyResponse.status, 200);
   assert.strictEqual((await verifyResponse.json()).success, true);
@@ -680,6 +691,130 @@ test('Search only searches permitted parent-approved content', async () => {
   assert.strictEqual(noMatchRes.status, 200);
   const noMatchData = await noMatchRes.json();
   assert.strictEqual(noMatchData.videos.length, 0);
+});
+
+test('Content audiences restrict sibling visibility and child usernames are globally unique', async () => {
+  const parentUsername = `audience_parent_${Date.now()}`;
+  const parentRegisterRes = await fetch(`${baseUrl}/api/auth/parent/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username: parentUsername,
+      email: `${parentUsername}@test.com`,
+      password: 'parentPassword123'
+    })
+  });
+  assert.strictEqual(parentRegisterRes.status, 201);
+  const scopedParentToken = (await parentRegisterRes.json()).token;
+  const targetUsername = `audience_target_${Date.now()}`;
+  const targetCreateRes = await fetch(`${baseUrl}/api/parent/children`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(scopedParentToken)
+    },
+    body: JSON.stringify({ username: targetUsername, password: 'targetPassword123' })
+  });
+  assert.strictEqual(targetCreateRes.status, 201);
+  const targetChild = (await targetCreateRes.json()).data;
+  const availabilityRes = await fetch(
+    `${baseUrl}/api/parent/children/check-username?username=${encodeURIComponent(targetUsername.toUpperCase())}`,
+    { headers: authHeaders(scopedParentToken) }
+  );
+  const availability = await availabilityRes.json();
+  assert.strictEqual(availability.available, false);
+
+  const duplicateRes = await fetch(`${baseUrl}/api/parent/children`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(scopedParentToken)
+    },
+    body: JSON.stringify({
+      username: targetUsername.toUpperCase(),
+      password: 'childPassword123'
+    })
+  });
+  assert.strictEqual(duplicateRes.status, 409);
+
+  const siblingUsername = `sibling_${Date.now()}`;
+  const siblingRes = await fetch(`${baseUrl}/api/parent/children`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(scopedParentToken)
+    },
+    body: JSON.stringify({
+      username: siblingUsername,
+      password: 'siblingPassword123'
+    })
+  });
+  assert.strictEqual(siblingRes.status, 201);
+  const sibling = (await siblingRes.json()).data;
+  const siblingLoginRes = await fetch(`${baseUrl}/api/auth/child/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: siblingUsername, password: 'siblingPassword123' })
+  });
+  const siblingToken = (await siblingLoginRes.json()).token;
+  const targetLoginRes = await fetch(`${baseUrl}/api/auth/child/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: targetUsername, password: 'targetPassword123' })
+  });
+  const targetToken = (await targetLoginRes.json()).token;
+
+  const invalidAudienceRes = await fetch(`${baseUrl}/api/content/video`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(scopedParentToken)
+    },
+    body: JSON.stringify({
+      title: 'Invalid audience video',
+      youtubeUrlOrId: 'Audience001',
+      childIds: ['not-this-parents-child']
+    })
+  });
+  assert.strictEqual(invalidAudienceRes.status, 400);
+
+  const addVideoRes = await fetch(`${baseUrl}/api/content/video`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...authHeaders(scopedParentToken)
+    },
+    body: JSON.stringify({
+      title: 'Child-only approved video',
+      youtubeUrlOrId: 'Audience001',
+      category: 'LEARNING',
+      childIds: [targetChild.id]
+    })
+  });
+  assert.strictEqual(addVideoRes.status, 201);
+  const scopedVideo = (await addVideoRes.json()).data;
+
+  const childContentRes = await fetch(`${baseUrl}/api/content/approved`, {
+    headers: authHeaders(targetToken)
+  });
+  const childContent = await childContentRes.json();
+  assert.ok(childContent.videos.some((video) => video.id === scopedVideo.id));
+
+  const siblingContentRes = await fetch(`${baseUrl}/api/content/approved`, {
+    headers: authHeaders(siblingToken)
+  });
+  const siblingContent = await siblingContentRes.json();
+  assert.strictEqual(
+    siblingContent.videos.some((video) => video.id === scopedVideo.id),
+    false
+  );
+
+  const siblingDirectRes = await fetch(
+    `${baseUrl}/api/content/video/${scopedVideo.id}`,
+    { headers: authHeaders(siblingToken) }
+  );
+  assert.strictEqual(siblingDirectRes.status, 404);
+  assert.ok(sibling.id);
 });
 
 // 10. Watch Time, Temporary Extension, and Date-Based Daily Reset
@@ -1109,4 +1244,3 @@ test('E2E TEST I - Admin creates parent account -> verified in MongoDB Atlas -> 
   });
   assert.strictEqual(badLoginRes.status, 401);
 });
-

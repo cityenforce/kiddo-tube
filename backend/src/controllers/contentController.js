@@ -33,7 +33,15 @@ async function getApprovedVideos(req, res, next) {
     }
 
     const { category, search, channel } = req.query;
-    const result = await contentService.getApprovedContent(parentId, { category, search, channel });
+    const childId = req.user?.role === 'CHILD'
+      ? req.user.childId || req.user.id
+      : null;
+    const result = await contentService.getApprovedContent(parentId, {
+      category,
+      search,
+      channel,
+      childId
+    });
     return res.status(200).json({ success: true, ...result });
   } catch (err) {
     next(err);
@@ -51,7 +59,10 @@ async function getVideoById(req, res, next) {
     }
 
     const { id } = req.params;
-    const video = await contentService.getVideoById(parentId, id);
+    const childId = req.user?.role === 'CHILD'
+      ? req.user.childId || req.user.id
+      : null;
+    const video = await contentService.getVideoById(parentId, id, childId);
     if (!video) {
       return res.status(404).json({
         success: false,

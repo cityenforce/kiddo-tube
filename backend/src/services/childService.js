@@ -2,6 +2,7 @@ const db = require('../models/db');
 const { ACCOUNT_STATUS } = require('../constants/roles');
 const { hashPassword } = require('../utils/cryptoUtils');
 const { getTodayDateString } = require('../utils/dateUtils');
+const { randomUUID } = require('node:crypto');
 
 async function getChildren(parentId) {
   const children = await db.findChildrenByParentId(parentId);
@@ -12,7 +13,7 @@ async function getChildren(parentId) {
   const results = [];
   for (const c of children) {
     const watchRecord = await db.getWatchTimeRecord(parentId, c.id, today);
-    const { passwordHash, ...safeChild } = c;
+    const { passwordHash, plainPassword, ...safeChild } = c;
     results.push({
       ...safeChild,
       dailyLimitMinutes,
@@ -24,7 +25,7 @@ async function getChildren(parentId) {
   return results;
 }
 
-async function createChild(parentId, { username, displayName, password = '1234', avatarEmoji = '🚀', colorHex = 0xFF00A6FB, ageGroup = 6 }) {
+async function createChild(parentId, { username, displayName, password, avatarEmoji = '🚀', colorHex = 0xFF00A6FB, ageGroup = 6 }) {
   if (!username || typeof username !== 'string' || !username.trim()) {
     throw { statusCode: 400, message: 'Child username is required' };
   }
@@ -35,27 +36,34 @@ async function createChild(parentId, { username, displayName, password = '1234',
     throw { statusCode: 409, message: `Username "${cleanUsername}" already exists. Please choose a different username.` };
   }
 
-  const cleanPassword = (password || '1234').trim();
+  const cleanPassword = typeof password === 'string' ? password.trim() : '';
   if (cleanPassword.length < 4) {
     throw { statusCode: 400, message: 'Password must be at least 4 characters long' };
   }
 
-  const childId = `kid_${Date.now()}`;
-  const newChild = await db.createChild({
-    id: childId,
-    parentId,
-    username: cleanUsername,
-    displayName: (displayName || cleanUsername).trim(),
-    passwordHash: hashPassword(cleanPassword),
-    avatarEmoji: avatarEmoji || '🚀',
-    colorHex: colorHex || 0xFF00A6FB,
-    ageGroup: Number(ageGroup) || 6,
-    status: ACCOUNT_STATUS.ACTIVE,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  });
+  let newChild;
+  try {
+    newChild = await db.createChild({
+      id: `kid_${randomUUID()}`,
+      parentId,
+      username: cleanUsername,
+      displayName: (displayName || cleanUsername).trim(),
+      passwordHash: hashPassword(cleanPassword),
+      avatarEmoji: avatarEmoji || '🚀',
+      colorHex: colorHex || 0xFF00A6FB,
+      ageGroup: Number(ageGroup) || 6,
+      status: ACCOUNT_STATUS.ACTIVE,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    if (error && error.code === 11000) {
+      throw { statusCode: 409, message: `Username "${cleanUsername}" already exists. Please choose a different username.` };
+    }
+    throw error;
+  }
 
-  const { passwordHash, ...safeChild } = newChild;
+  const { passwordHash, plainPassword, ...safeChild } = newChild;
   return safeChild;
 }
 
@@ -73,7 +81,7 @@ async function updateChild(parentId, childId, updates) {
   if (updates.status !== undefined) allowedFields.status = updates.status;
 
   const updated = await db.updateChild(childId, allowedFields);
-  const { passwordHash, ...safeChild } = updated;
+  const { passwordHash, plainPassword, ...safeChild } = updated;
   return safeChild;
 }
 
@@ -87,8 +95,9 @@ async function resetChildPassword(parentId, childId, newPassword) {
     throw { statusCode: 400, message: 'Password must be at least 4 characters long' };
   }
 
+  const cleanPass = newPassword.trim();
   const updated = await db.updateChild(childId, {
-    passwordHash: hashPassword(newPassword.trim())
+    passwordHash: hashPassword(cleanPass)
   });
 
   return {

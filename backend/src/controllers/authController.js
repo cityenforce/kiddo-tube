@@ -125,11 +125,33 @@ async function meHandler(req, res, next) {
   }
 }
 
+async function forgotPasswordHandler(req, res, next) {
+  try {
+    const { email } = req.body;
+    const result = await authService.requestParentPasswordResetOtp(email);
+    return res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function resetPasswordWithOtpHandler(req, res, next) {
+  try {
+    const { email, otp, newPassword } = req.body;
+    const result = await authService.resetParentPasswordWithOtp(email, otp, newPassword);
+    return res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
 module.exports = {
   registerParentHandler,
   loginParentHandler,
   loginChildHandler,
   loginAdminHandler,
   logoutHandler,
-  meHandler
+  meHandler,
+  forgotPasswordHandler,
+  resetPasswordWithOtpHandler
 };

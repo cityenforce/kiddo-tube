@@ -11,7 +11,8 @@ const CONTENT_STATUS = {
 
 const ACCOUNT_STATUS = {
   ACTIVE: 'ACTIVE',
-  DISABLED: 'DISABLED'
+  DISABLED: 'DISABLED',
+  BLOCKED: 'BLOCKED'
 };
 
 module.exports = {

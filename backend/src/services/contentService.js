@@ -3,12 +3,36 @@ const { CONTENT_STATUS } = require('../constants/roles');
 const { extractYouTubeVideoId, extractYouTubePlaylistId, extractYouTubeChannelIdentifier } = require('../validators/inputValidators');
 const youtubeCatalog = require('./youtubeCatalogService');
 
-async function saveApprovedVideos(parentId, metadata, channelTitle, category) {
+async function normalizeChildIds(parentId, childIds) {
+  if (childIds === undefined || childIds === null || !Array.isArray(childIds)) return [];
+  const normalizedIds = Array.from(new Set(childIds.map(String)));
+  if (normalizedIds.length === 0) return [];
+
+  const children = await db.findChildrenByParentId(parentId);
+  const validChildIds = new Set(children.map((child) => child.id));
+  if (normalizedIds.some((id) => !validChildIds.has(id))) {
+    throw { statusCode: 400, message: 'Selected child profile is not part of this parent account.' };
+  }
+  return normalizedIds;
+}
+
+async function saveApprovedVideos(parentId, metadata, channelTitle, category, childIds) {
   const existingVideos = await db.getVideos(parentId);
   const byYoutubeId = new Map(existingVideos.map((video) => [video.youtubeId, video]));
 
   for (const video of metadata) {
-    if (byYoutubeId.has(video.youtubeId)) continue;
+    const existing = byYoutubeId.get(video.youtubeId);
+    if (existing) {
+      const existingAudience = existing.childIds || [];
+      const mergedAudience = existingAudience.length === 0 || childIds.length === 0
+        ? []
+        : Array.from(new Set([...existingAudience, ...childIds]));
+      if (JSON.stringify(existingAudience) !== JSON.stringify(mergedAudience)) {
+        await db.updateVideo(existing.id, { childIds: mergedAudience });
+        existing.childIds = mergedAudience;
+      }
+      continue;
+    }
     const saved = await db.addVideo({
       id: `vid_${Date.now()}_${video.youtubeId}`,
       parentId,
@@ -18,6 +42,7 @@ async function saveApprovedVideos(parentId, metadata, channelTitle, category) {
       thumbnailUrl: video.thumbnailUrl,
       durationText: video.durationText,
       category: (category || 'LEARNING').toUpperCase(),
+      childIds,
       description: video.description,
       status: CONTENT_STATUS.APPROVED,
       createdAt: new Date().toISOString()
@@ -28,10 +53,18 @@ async function saveApprovedVideos(parentId, metadata, channelTitle, category) {
   return byYoutubeId;
 }
 
-async function getApprovedContent(parentId, { category, search, channel }) {
+async function getApprovedContent(parentId, { category, search, channel, childId }) {
   let videos = await db.getVideos(parentId, CONTENT_STATUS.APPROVED);
   let channels = await db.getChannels(parentId, CONTENT_STATUS.APPROVED);
   let playlists = await db.getPlaylists(parentId, CONTENT_STATUS.APPROVED);
+
+  if (childId) {
+    const isVisibleToChild = (item) => !item.childIds || item.childIds.length === 0 ||
+      item.childIds.includes(String(childId));
+    videos = videos.filter(isVisibleToChild);
+    channels = channels.filter(isVisibleToChild);
+    playlists = playlists.filter(isVisibleToChild);
+  }
 
   if (category && category !== 'ALL') {
     videos = videos.filter(v => v.category === category.toUpperCase());
@@ -66,15 +99,17 @@ async function getApprovedContent(parentId, { category, search, channel }) {
   };
 }
 
-async function getVideoById(parentId, id) {
+async function getVideoById(parentId, id, childId) {
   const video = await db.findVideoById(id);
   if (!video) return null;
   if (video.parentId !== parentId) return null;
   if (video.status !== CONTENT_STATUS.APPROVED) return null;
+  if (childId && video.childIds?.length > 0 && !video.childIds.includes(String(childId))) return null;
   return video;
 }
 
-async function addChannel(parentId, { title, channelId, channelUrlOrId, avatarUrl, description, colorAccentHex, category }) {
+async function addChannel(parentId, { title, channelId, channelUrlOrId, avatarUrl, description, colorAccentHex, category, childIds: requestedChildIds }) {
+  const childIds = await normalizeChildIds(parentId, requestedChildIds);
   const channelIdentifier = extractYouTubeChannelIdentifier(channelUrlOrId || channelId);
   const cleanChannelId = channelIdentifier;
   if (!cleanChannelId) {
@@ -87,7 +122,7 @@ async function addChannel(parentId, { title, channelId, channelUrlOrId, avatarUr
     youtubeChannel.contentDetails.relatedPlaylists.uploads
   );
   const videoMetadata = await youtubeCatalog.getVideoMetadata(videoIds);
-  await saveApprovedVideos(parentId, videoMetadata, channelTitle, category || 'SHOWS');
+  await saveApprovedVideos(parentId, videoMetadata, channelTitle, category || 'SHOWS', childIds);
 
   const id = `ch_${Date.now()}`;
 
@@ -99,6 +134,7 @@ async function addChannel(parentId, { title, channelId, channelUrlOrId, avatarUr
     avatarUrl: avatarUrl || youtubeCatalog.thumbnailFrom(youtubeChannel.snippet.thumbnails),
     videoCount: videoMetadata.length,
     colorAccentHex: colorAccentHex || 0xFF00A6FB,
+    childIds,
     description: description || youtubeChannel.snippet.description || 'Parent approved channel',
     category: (category || 'SHOWS').toUpperCase(),
     status: CONTENT_STATUS.APPROVED,
@@ -126,7 +162,8 @@ async function removeChannel(parentId, id) {
   return { success: true, message: `Channel "${channel.title}" and associated videos removed` };
 }
 
-async function addPlaylist(parentId, { title, playlistUrlOrId, channelTitle, thumbnailUrl, videoIds = [], category }) {
+async function addPlaylist(parentId, { title, playlistUrlOrId, channelTitle, thumbnailUrl, videoIds = [], category, childIds: requestedChildIds }) {
+  const childIds = await normalizeChildIds(parentId, requestedChildIds);
   const cleanPlaylistId = extractYouTubePlaylistId(playlistUrlOrId);
   if (!cleanPlaylistId) {
     throw { statusCode: 400, message: 'A valid YouTube playlist URL or ID is required' };
@@ -135,7 +172,7 @@ async function addPlaylist(parentId, { title, playlistUrlOrId, channelTitle, thu
   const playlistVideoIds = await youtubeCatalog.getPlaylistVideoIds(cleanPlaylistId);
   const videoMetadata = await youtubeCatalog.getVideoMetadata(playlistVideoIds);
   const creator = channelTitle?.trim() || youtubePlaylist.snippet.channelTitle;
-  const savedVideos = await saveApprovedVideos(parentId, videoMetadata, creator, category || 'LEARNING');
+  const savedVideos = await saveApprovedVideos(parentId, videoMetadata, creator, category || 'LEARNING', childIds);
   const savedPlaylistVideoIds = videoMetadata
     .map((video) => savedVideos.get(video.youtubeId)?.id)
     .filter(Boolean);
@@ -153,6 +190,7 @@ async function addPlaylist(parentId, { title, playlistUrlOrId, channelTitle, thu
     videoCount: savedPlaylistVideoIds.length,
     videoIds: savedPlaylistVideoIds.length > 0 ? savedPlaylistVideoIds : videoIds,
     category: (category || 'LEARNING').toUpperCase(),
+    childIds,
     status: CONTENT_STATUS.APPROVED,
     createdAt: new Date().toISOString()
   });
@@ -170,7 +208,8 @@ async function removePlaylist(parentId, id) {
   return { success: true, message: `Playlist "${pl.title}" removed` };
 }
 
-async function addVideo(parentId, { title, channelTitle, youtubeUrlOrId, category, durationText, thumbnailUrl, description }) {
+async function addVideo(parentId, { title, channelTitle, youtubeUrlOrId, category, durationText, thumbnailUrl, description, childIds: requestedChildIds }) {
+  const childIds = await normalizeChildIds(parentId, requestedChildIds);
   const cleanYoutubeId = extractYouTubeVideoId(youtubeUrlOrId);
   if (!cleanYoutubeId) {
     throw { statusCode: 400, message: 'A valid YouTube video URL or 11-character ID is required' };
@@ -190,6 +229,7 @@ async function addVideo(parentId, { title, channelTitle, youtubeUrlOrId, categor
     title: title?.trim() || youtubeVideo.title,
     channelTitle: channelTitle?.trim() || youtubeVideo.channelTitle,
     category: (category || 'LEARNING').toUpperCase(),
+    childIds,
     durationText: durationText || youtubeVideo.durationText,
     thumbnailUrl: realThumbnail,
     description: description || youtubeVideo.description,

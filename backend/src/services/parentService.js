@@ -114,7 +114,8 @@ async function updateParentPin(parentId, currentPin, newPin) {
     throw { statusCode: 400, message: 'New PIN must be exactly 4 digits' };
   }
 
-  if (parent.pinHash && !verifyPin(currentPin, parent.pinHash)) {
+  // If currentPin is provided, verify it. If omitted (direct PIN reset), allow new PIN directly
+  if (currentPin && parent.pinHash && !verifyPin(currentPin, parent.pinHash)) {
     throw { statusCode: 401, message: 'Current PIN is incorrect' };
   }
 

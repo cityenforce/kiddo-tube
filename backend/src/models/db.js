@@ -11,7 +11,6 @@ class MongoDatabase {
   constructor() {
     this.client = null;
     this.db = null;
-    this.memoryServer = null;
     this.isInitialized = false;
     this.initPromise = null;
   }
@@ -25,64 +24,43 @@ class MongoDatabase {
     }
 
     this.initPromise = (async () => {
-      let uri = customUri || process.env.MONGODB_URI;
+      const uri = customUri || process.env.MONGODB_URI;
       const dbName = process.env.MONGODB_DATABASE || 'kidsstream';
+
+      if (!uri) {
+        throw new Error('MONGODB_URI environment variable is not set.');
+      }
 
       const createMongoClient = (targetUri) => {
         return new MongoClient(targetUri, {
-          serverSelectionTimeoutMS: 6000,
-          connectTimeoutMS: 6000,
+          serverSelectionTimeoutMS: 10000, // Thoda time barha diya
+          connectTimeoutMS: 10000,
           socketTimeoutMS: 45000,
           maxPoolSize: 25,
           minPoolSize: 1,
           retryReads: true,
           retryWrites: true,
+          autoSelectFamily: false, // ✅ SSL WRONG_VERSION_NUMBER error fix
         });
       };
 
-      // 1. If uri is provided (e.g. MongoDB Atlas), try connecting to it
-      if (uri) {
-        try {
-          this.client = createMongoClient(uri);
-          await this.client.connect();
-          this.db = this.client.db(dbName);
-          this.isInitialized = true;
-          console.log(`[MongoDB] Successfully connected to database: ${dbName}`);
-
-          await this.createIndexes();
-          await this.seedIfEmpty();
-          return this.db;
-        } catch (err) {
-          console.warn(`[MongoDB] Primary connection to ${uri.replace(/:[^:]*@/, ':***@')} failed: ${err.message}. Activating resilient local fallback MongoDB server to ensure zero downtime...`);
-          this.client = null;
-          this.db = null;
-        }
-      }
-
-      // 2. Fallback to in-process official MongoDB instance using MongoMemoryServer
       try {
-        const { MongoMemoryServer } = require('mongodb-memory-server');
-        if (!this.memoryServer) {
-          this.memoryServer = await MongoMemoryServer.create({
-            instance: { launchTimeout: 30000 }
-          });
-        }
-        const fallbackUri = this.memoryServer.getUri();
-        console.log(`[MongoDB] Initialized resilient local MongoDB instance at ${fallbackUri}`);
-        this.client = createMongoClient(fallbackUri);
+        this.client = createMongoClient(uri);
         await this.client.connect();
         this.db = this.client.db(dbName);
         this.isInitialized = true;
+        console.log(`[MongoDB] Successfully connected to database: ${dbName}`);
 
         await this.createIndexes();
         await this.seedIfEmpty();
         return this.db;
-      } catch (memErr) {
-        console.error('[MongoDB] Failed to initialize MongoDB connection:', memErr.message);
+      } catch (err) {
+        console.error(`[MongoDB] Primary connection failed: ${err.message}`);
         this.initPromise = null;
         this.client = null;
+        this.db = null;
         this.isInitialized = false;
-        throw new Error(`MongoDB connection failed: Primary and fallback both failed: ${memErr.message}`);
+        throw new Error(`MongoDB connection failed: ${err.message}`);
       }
     })();
 
@@ -106,7 +84,6 @@ class MongoDatabase {
       // 2. Children collection indexes
       await db.collection('children').createIndex({ parentId: 1 });
       await db.collection('children').createIndex({ parentId: 1, username: 1 }, { unique: true });
-
       // 3. Admins collection indexes
       await db.collection('admins').createIndex({ username: 1 }, { unique: true });
       await db.collection('admins').createIndex({ email: 1 }, { unique: true });
@@ -134,6 +111,29 @@ class MongoDatabase {
       // 9. Sessions collection indexes
       await db.collection('sessions').createIndex({ token: 1 }, { unique: true });
       await db.collection('sessions').createIndex({ userId: 1 });
+
+      const children = db.collection('children');
+      const legacyChildren = await children
+        .find({ usernameNormalized: { $exists: false }, username: { $type: 'string' } })
+        .project({ _id: 1, username: 1 })
+        .toArray();
+      for (const child of legacyChildren) {
+        await children.updateOne(
+          { _id: child._id },
+          { $set: { usernameNormalized: child.username.trim().toLowerCase() } }
+        );
+      }
+      await children.updateMany(
+        { plainPassword: { $exists: true } },
+        { $unset: { plainPassword: '' } }
+      );
+      await children.createIndex(
+        { usernameNormalized: 1 },
+        {
+          unique: true,
+          partialFilterExpression: { usernameNormalized: { $type: 'string' } }
+        }
+      );
     } catch (idxErr) {
       console.warn('[MongoDB] Index creation notice:', idxErr.message);
     }
@@ -141,11 +141,45 @@ class MongoDatabase {
 
   async seedIfEmpty() {
     const db = this.db;
+    const now = new Date().toISOString();
+
+    // Ensure system administrator exists and is active
+    try {
+      const existingAdmin = await db.collection('admins').findOne({
+        $or: [{ _id: 'admin_1' }, { username: 'admin' }, { email: 'admin@kidsstream.app' }]
+      });
+      if (!existingAdmin) {
+        await db.collection('admins').insertOne({
+          _id: 'admin_1',
+          username: 'admin',
+          displayName: 'System Administrator',
+          email: 'admin@kidsstream.app',
+          passwordHash: hashPassword('admin123'),
+          role: ROLES.ADMIN,
+          status: ACCOUNT_STATUS.ACTIVE,
+          createdAt: now
+        });
+      } else {
+        await db.collection('admins').updateOne(
+          { _id: existingAdmin._id },
+          {
+            $set: {
+              username: 'admin',
+              passwordHash: hashPassword('admin123'),
+              role: ROLES.ADMIN,
+              status: ACCOUNT_STATUS.ACTIVE
+            }
+          }
+        );
+      }
+    } catch (adminErr) {
+      console.warn('[MongoDB] Admin seeding notice:', adminErr.message);
+    }
+
     const parentCount = await db.collection('parents').countDocuments();
     if (parentCount > 0) return;
 
     const defaultParentId = 'parent_1';
-    const now = new Date().toISOString();
 
     await db.collection('parents').insertOne({
       _id: defaultParentId,
@@ -165,6 +199,7 @@ class MongoDatabase {
         _id: 'kid_1',
         parentId: defaultParentId,
         username: 'Ethan',
+        usernameNormalized: 'ethan',
         displayName: 'Ethan (Ninja Explorer)',
         passwordHash: hashPassword('1234'),
         avatarEmoji: '🥷',
@@ -178,6 +213,7 @@ class MongoDatabase {
         _id: 'kid_2',
         parentId: defaultParentId,
         username: 'Jessica',
+        usernameNormalized: 'jessica',
         displayName: 'Jessica (Story Explorer)',
         passwordHash: hashPassword('1234'),
         avatarEmoji: '🕯️',
@@ -191,6 +227,7 @@ class MongoDatabase {
         _id: 'kid_3',
         parentId: defaultParentId,
         username: 'Michelle',
+        usernameNormalized: 'michelle',
         displayName: 'Michelle (Tiny Explorer)',
         passwordHash: hashPassword('1234'),
         avatarEmoji: '🍞',
@@ -402,13 +439,14 @@ class MongoDatabase {
   async findParentByUsernameOrEmail(identifier) {
     if (!identifier) return null;
     const db = await this.getDb();
-    const clean = identifier.trim();
+    const clean = String(identifier).trim();
     const escaped = escapeRegex(clean);
     const doc = await db.collection('parents').findOne({
       $or: [
         { _id: clean },
         { username: { $regex: new RegExp(`^${escaped}$`, 'i') } },
-        { email: { $regex: new RegExp(`^${escaped}$`, 'i') } }
+        { email: { $regex: new RegExp(`^${escaped}$`, 'i') } },
+        { email: clean.toLowerCase() }
       ]
     });
     return this.mapDoc(doc);
@@ -475,9 +513,8 @@ class MongoDatabase {
     const escaped = escapeRegex(clean);
     const doc = await db.collection('children').findOne({
       $or: [
-        { _id: clean },
+        { usernameNormalized: clean.toLowerCase() },
         { username: { $regex: new RegExp(`^${escaped}$`, 'i') } },
-        { displayName: { $regex: new RegExp(`^${escaped}$`, 'i') } }
       ]
     });
     return this.mapDoc(doc);
@@ -497,6 +534,7 @@ class MongoDatabase {
       _id: id,
       parentId: String(childData.parentId),
       username: childData.username,
+      usernameNormalized: String(childData.username || '').trim().toLowerCase(),
       displayName: childData.displayName || childData.username,
       passwordHash: childData.passwordHash,
       avatarEmoji: childData.avatarEmoji || '🎈',
@@ -506,6 +544,7 @@ class MongoDatabase {
       createdAt: childData.createdAt || now,
       updatedAt: childData.updatedAt || now
     };
+    delete doc.plainPassword;
     await db.collection('children').insertOne(doc);
     return this.mapDoc(doc);
   }
@@ -584,6 +623,7 @@ class MongoDatabase {
       colorAccentHex: Number(channelData.colorAccentHex) || 0xFF00A6FB,
       description: channelData.description || '',
       status: channelData.status || CONTENT_STATUS.APPROVED,
+      childIds: Array.isArray(channelData.childIds) ? channelData.childIds.map(String) : [],
       createdAt: channelData.createdAt || new Date().toISOString()
     };
     await db.collection('channels').insertOne(doc);
@@ -643,6 +683,7 @@ class MongoDatabase {
         : 1,
       videoIds: Array.isArray(playlistData.videoIds) ? playlistData.videoIds : [],
       status: playlistData.status || CONTENT_STATUS.APPROVED,
+      childIds: Array.isArray(playlistData.childIds) ? playlistData.childIds.map(String) : [],
       createdAt: playlistData.createdAt || new Date().toISOString()
     };
     await db.collection('playlists').insertOne(doc);
@@ -699,6 +740,7 @@ class MongoDatabase {
       thumbnailUrl: videoData.thumbnailUrl,
       durationText: videoData.durationText || '05:00',
       category: videoData.category || 'LEARNING',
+      childIds: Array.isArray(videoData.childIds) ? videoData.childIds.map(String) : [],
       description: videoData.description || '',
       status: videoData.status || CONTENT_STATUS.APPROVED,
       createdAt: videoData.createdAt || new Date().toISOString()
@@ -718,8 +760,8 @@ class MongoDatabase {
 
   async deleteVideo(id) {
     const db = await this.getDb();
-    await db.collection('videos').deleteOne({ _id: String(id) });
-    return true;
+    const result = await db.collection('videos').deleteOne({ _id: String(id) });
+    return result.deletedCount > 0;
   }
 
   async getAllSystemVideos() {
@@ -877,10 +919,6 @@ class MongoDatabase {
       this.db = null;
       this.isInitialized = false;
       this.initPromise = null;
-    }
-    if (this.memoryServer) {
-      await this.memoryServer.stop();
-      this.memoryServer = null;
     }
   }
 }

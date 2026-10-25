@@ -77,15 +77,20 @@ async function getAllParentsHandler(req, res, next) {
 async function toggleParentStatusHandler(req, res, next) {
   try {
     const { parentId } = req.params;
+    const requestedStatus = req.body?.status || req.query?.status;
     const parent = await db.findParentById(parentId);
     if (!parent) {
       return res.status(404).json({ success: false, error: 'Parent account not found' });
     }
 
-    const newStatus = parent.status === ACCOUNT_STATUS.ACTIVE ? ACCOUNT_STATUS.DISABLED : ACCOUNT_STATUS.ACTIVE;
+    let newStatus = parent.status === ACCOUNT_STATUS.ACTIVE ? ACCOUNT_STATUS.DISABLED : ACCOUNT_STATUS.ACTIVE;
+    if (requestedStatus && ['ACTIVE', 'DISABLED', 'BLOCKED'].includes(requestedStatus.toUpperCase())) {
+      newStatus = requestedStatus.toUpperCase();
+    }
+
     const updated = await db.updateParent(parentId, { status: newStatus });
 
-    if (newStatus === ACCOUNT_STATUS.DISABLED) {
+    if (newStatus === ACCOUNT_STATUS.DISABLED || newStatus === ACCOUNT_STATUS.BLOCKED) {
       await db.deleteSessionsForParent(parentId);
     }
 
@@ -93,7 +98,7 @@ async function toggleParentStatusHandler(req, res, next) {
     return res.status(200).json({
       success: true,
       data: safe,
-      message: `Parent account ${newStatus === ACCOUNT_STATUS.ACTIVE ? 'activated' : 'disabled'}.`
+      message: `Parent account status updated to ${newStatus}.`
     });
   } catch (err) {
     next(err);
@@ -137,15 +142,20 @@ async function getAllChildrenHandler(req, res, next) {
 async function toggleChildStatusHandler(req, res, next) {
   try {
     const { childId } = req.params;
+    const requestedStatus = req.body?.status || req.query?.status;
     const child = await db.findChildById(childId);
     if (!child) {
       return res.status(404).json({ success: false, error: 'Child account not found' });
     }
 
-    const newStatus = child.status === ACCOUNT_STATUS.ACTIVE ? ACCOUNT_STATUS.DISABLED : ACCOUNT_STATUS.ACTIVE;
+    let newStatus = child.status === ACCOUNT_STATUS.ACTIVE ? ACCOUNT_STATUS.DISABLED : ACCOUNT_STATUS.ACTIVE;
+    if (requestedStatus && ['ACTIVE', 'DISABLED', 'BLOCKED'].includes(requestedStatus.toUpperCase())) {
+      newStatus = requestedStatus.toUpperCase();
+    }
+
     const updated = await db.updateChild(childId, { status: newStatus });
 
-    if (newStatus === ACCOUNT_STATUS.DISABLED) {
+    if (newStatus === ACCOUNT_STATUS.DISABLED || newStatus === ACCOUNT_STATUS.BLOCKED) {
       await db.deleteSessionsForChild(childId);
     }
 
@@ -153,7 +163,7 @@ async function toggleChildStatusHandler(req, res, next) {
     return res.status(200).json({
       success: true,
       data: safe,
-      message: `Child account ${newStatus === ACCOUNT_STATUS.ACTIVE ? 'activated' : 'disabled'}.`
+      message: `Child account status updated to ${newStatus}.`
     });
   } catch (err) {
     next(err);
@@ -181,9 +191,15 @@ async function getAllContentHandler(req, res, next) {
 
 async function moderateContentHandler(req, res, next) {
   try {
-    const { type, id, action } = req.body; // type: 'channel' | 'playlist' | 'video', action: 'BLOCK' | 'REMOVE'
+    const { type, id, action = 'BLOCK' } = req.body || {};
     if (!type || !id) {
       return res.status(400).json({ success: false, error: 'Content type and id are required' });
+    }
+    if (!['channel', 'playlist', 'video'].includes(type)) {
+      return res.status(400).json({ success: false, error: 'Unsupported content type' });
+    }
+    if (!['BLOCK', 'REMOVE'].includes(action)) {
+      return res.status(400).json({ success: false, error: 'Unsupported moderation action' });
     }
 
     if (type === 'channel') {
@@ -193,13 +209,22 @@ async function moderateContentHandler(req, res, next) {
       if (action === 'REMOVE') await db.deletePlaylist(id);
       else await db.updatePlaylist(id, { status: CONTENT_STATUS.BLOCKED });
     } else if (type === 'video') {
-      if (action === 'REMOVE') await db.deleteVideo(id);
-      else await db.updateVideo(id, { status: CONTENT_STATUS.BLOCKED });
+      if (action === 'REMOVE') {
+        const removed = await db.deleteVideo(id);
+        if (!removed) {
+          return res.status(404).json({ success: false, error: 'Video not found' });
+        }
+      } else {
+        const updated = await db.updateVideo(id, { status: CONTENT_STATUS.BLOCKED });
+        if (!updated) {
+          return res.status(404).json({ success: false, error: 'Video not found' });
+        }
+      }
     }
 
     return res.status(200).json({
       success: true,
-      message: `Content ${id} moderated with action ${action || 'BLOCK'}.`
+      message: `Content ${id} moderated with action ${action}.`
     });
   } catch (err) {
     next(err);
