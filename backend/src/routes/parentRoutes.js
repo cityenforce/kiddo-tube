@@ -18,6 +18,7 @@ router.get('/children', requireParent, parentController.getChildrenHandler);
 router.post('/children', requireParent, parentController.createChildHandler);
 router.put('/children/:childId', requireParent, parentController.updateChildHandler);
 router.post('/children/:childId/reset-password', requireParent, parentController.resetChildPasswordHandler);
+router.get('/children/:childId/password', requireParent, parentController.getChildPasswordHandler);
 router.delete('/children/:childId', requireParent, parentController.deleteChildHandler);
 
 // Settings & PIN Management

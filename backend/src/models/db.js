@@ -426,6 +426,7 @@ class MongoDatabase {
   mapDoc(doc) {
     if (!doc) return null;
     const { _id, ...rest } = doc;
+    delete rest.passwordEncrypted;
     return { id: String(_id), ...rest };
   }
 
@@ -494,6 +495,15 @@ class MongoDatabase {
     return this.mapDoc(doc);
   }
 
+  async findChildPasswordEncrypted(id) {
+    const db = await this.getDb();
+    const doc = await db.collection('children').findOne(
+      { _id: String(id) },
+      { projection: { passwordEncrypted: 1 } }
+    );
+    return doc?.passwordEncrypted || null;
+  }
+
   async findChildByUsername(parentId, username) {
     const db = await this.getDb();
     const clean = (username || '').trim();
@@ -537,6 +547,7 @@ class MongoDatabase {
       usernameNormalized: String(childData.username || '').trim().toLowerCase(),
       displayName: childData.displayName || childData.username,
       passwordHash: childData.passwordHash,
+      passwordEncrypted: childData.passwordEncrypted,
       avatarEmoji: childData.avatarEmoji || '🎈',
       colorHex: Number(childData.colorHex) || 0xFF00A6FB,
       ageGroup: Number(childData.ageGroup) || 6,

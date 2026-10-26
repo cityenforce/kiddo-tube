@@ -15,6 +15,7 @@ module.exports = {
   PORT: process.env.BACKEND_PORT || (process.env.PORT && process.env.PORT !== '8080' ? process.env.PORT : 4000),
   NODE_ENV: process.env.NODE_ENV || 'development',
   JWT_SECRET: process.env.JWT_SECRET || 'kidsstream_production_secret_key_2026',
+  CHILD_PASSWORD_ENCRYPTION_KEY: process.env.CHILD_PASSWORD_ENCRYPTION_KEY || 'mGDdDQHQPbdQBNq+J0gLB/HGHHJ7F9goXRluAGf1lmY=',
   MONGODB_URI: process.env.MONGODB_URI || '',
   MONGODB_DATABASE: process.env.MONGODB_DATABASE || 'kidsstream',
   RESEND_API_KEY: process.env.RESEND_API_KEY || '',

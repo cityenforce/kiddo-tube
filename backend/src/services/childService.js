@@ -1,6 +1,7 @@
 const db = require('../models/db');
 const { ACCOUNT_STATUS } = require('../constants/roles');
 const { hashPassword } = require('../utils/cryptoUtils');
+const { encryptPassword, decryptPassword } = require('../utils/passwordEncryption');
 const { getTodayDateString } = require('../utils/dateUtils');
 const { randomUUID } = require('node:crypto');
 
@@ -13,7 +14,7 @@ async function getChildren(parentId) {
   const results = [];
   for (const c of children) {
     const watchRecord = await db.getWatchTimeRecord(parentId, c.id, today);
-    const { passwordHash, plainPassword, ...safeChild } = c;
+    const { passwordHash, passwordEncrypted, plainPassword, ...safeChild } = c;
     results.push({
       ...safeChild,
       dailyLimitMinutes,
@@ -43,12 +44,14 @@ async function createChild(parentId, { username, displayName, password, avatarEm
 
   let newChild;
   try {
+    const childId = `kid_${randomUUID()}`;
     newChild = await db.createChild({
-      id: `kid_${randomUUID()}`,
+      id: childId,
       parentId,
       username: cleanUsername,
       displayName: (displayName || cleanUsername).trim(),
       passwordHash: hashPassword(cleanPassword),
+      passwordEncrypted: encryptPassword(cleanPassword, childId),
       avatarEmoji: avatarEmoji || '🚀',
       colorHex: colorHex || 0xFF00A6FB,
       ageGroup: Number(ageGroup) || 6,
@@ -63,7 +66,7 @@ async function createChild(parentId, { username, displayName, password, avatarEm
     throw error;
   }
 
-  const { passwordHash, plainPassword, ...safeChild } = newChild;
+  const { passwordHash, passwordEncrypted, plainPassword, ...safeChild } = newChild;
   return safeChild;
 }
 
@@ -81,7 +84,7 @@ async function updateChild(parentId, childId, updates) {
   if (updates.status !== undefined) allowedFields.status = updates.status;
 
   const updated = await db.updateChild(childId, allowedFields);
-  const { passwordHash, plainPassword, ...safeChild } = updated;
+  const { passwordHash, passwordEncrypted, plainPassword, ...safeChild } = updated;
   return safeChild;
 }
 
@@ -97,7 +100,8 @@ async function resetChildPassword(parentId, childId, newPassword) {
 
   const cleanPass = newPassword.trim();
   const updated = await db.updateChild(childId, {
-    passwordHash: hashPassword(cleanPass)
+    passwordHash: hashPassword(cleanPass),
+    passwordEncrypted: encryptPassword(cleanPass, childId)
   });
 
   return {
@@ -105,6 +109,23 @@ async function resetChildPassword(parentId, childId, newPassword) {
     message: `Password reset successfully for ${updated.displayName}`,
     username: updated.username
   };
+}
+
+async function getChildPassword(parentId, childId) {
+  const child = await db.findChildById(childId);
+  if (!child || child.parentId !== parentId) {
+    throw { statusCode: 404, message: 'Child not found' };
+  }
+
+  const encryptedPassword = await db.findChildPasswordEncrypted(childId);
+  if (!encryptedPassword) {
+    throw {
+      statusCode: 409,
+      message: 'This password was set before secure viewing was available. Reset it to enable password viewing.'
+    };
+  }
+
+  return { password: decryptPassword(encryptedPassword, childId) };
 }
 
 async function deleteChild(parentId, childId) {
@@ -122,5 +143,6 @@ module.exports = {
   createChild,
   updateChild,
   resetChildPassword,
+  getChildPassword,
   deleteChild
 };

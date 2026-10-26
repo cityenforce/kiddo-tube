@@ -107,6 +107,17 @@ async function resetChildPasswordHandler(req, res, next) {
   }
 }
 
+async function getChildPasswordHandler(req, res, next) {
+  try {
+    const parentId = req.user.parentId || req.user.id;
+    const { childId } = req.params;
+    const result = await childService.getChildPassword(parentId, childId);
+    return res.status(200).json({ success: true, data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function deleteChildHandler(req, res, next) {
   try {
     const parentId = req.user.parentId || req.user.id;
@@ -198,6 +209,7 @@ module.exports = {
   checkChildUsernameHandler,
   updateChildHandler,
   resetChildPasswordHandler,
+  getChildPasswordHandler,
   deleteChildHandler,
   updateDailyLimitHandler,
   verifyPinHandler,
