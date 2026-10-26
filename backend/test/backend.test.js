@@ -330,6 +330,96 @@ test('Parent can update account username and email and change password', async (
   parentToken = (await loginResponse.json()).token;
 });
 
+test('Parent password reset via OTP email flow works end-to-end', async () => {
+  const timestamp = Date.now();
+  const testEmail = `parent_otp_${timestamp}@example.com`;
+  const initialPassword = 'initialPassword123!';
+  const resetPassword = 'newOtpResetPassword789!';
+
+  // 1. Register a test parent
+  const regRes = await fetch(`${baseUrl}/api/auth/parent/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username: `parent_otp_${timestamp}`,
+      email: testEmail,
+      password: initialPassword
+    })
+  });
+  assert.strictEqual(regRes.status, 201);
+
+  // 2. Request OTP for non-existent email -> 404
+  const notFoundRes = await fetch(`${baseUrl}/api/auth/parent/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'nonexistent_parent_404@example.com' })
+  });
+  assert.strictEqual(notFoundRes.status, 404);
+
+  // 3. Request OTP for valid parent email -> 200 with code generated
+  const forgotRes = await fetch(`${baseUrl}/api/auth/parent/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: testEmail })
+  });
+  assert.strictEqual(forgotRes.status, 200);
+  const forgotData = await forgotRes.json();
+  assert.strictEqual(forgotData.success, true);
+  assert.ok(forgotData.devOtp, 'Should include devOtp when running in dev/test environment');
+  const otpCode = forgotData.devOtp;
+
+  // 4. Reset with wrong OTP -> 400
+  const wrongOtpRes = await fetch(`${baseUrl}/api/auth/parent/reset-password-otp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email: testEmail,
+      otp: '000000',
+      newPassword: resetPassword
+    })
+  });
+  assert.strictEqual(wrongOtpRes.status, 400);
+
+  // 5. Reset with correct OTP -> 200
+  const resetRes = await fetch(`${baseUrl}/api/auth/parent/reset-password-otp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email: testEmail,
+      otp: otpCode,
+      newPassword: resetPassword
+    })
+  });
+  assert.strictEqual(resetRes.status, 200);
+  const resetData = await resetRes.json();
+  assert.strictEqual(resetData.success, true);
+
+  // 6. Old password fails -> 401
+  const oldLoginRes = await fetch(`${baseUrl}/api/auth/parent/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username: testEmail,
+      password: initialPassword
+    })
+  });
+  assert.strictEqual(oldLoginRes.status, 401);
+
+  // 7. New password succeeds -> 200
+  const newLoginRes = await fetch(`${baseUrl}/api/auth/parent/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username: testEmail,
+      password: resetPassword
+    })
+  });
+  assert.strictEqual(newLoginRes.status, 200);
+  const newLoginData = await newLoginRes.json();
+  assert.strictEqual(newLoginData.success, true);
+  assert.ok(newLoginData.token);
+});
+
 test('YouTube channel link and custom display name are saved for the parent', async () => {
   const customName = `Favorite Kids Channel ${Date.now()}`;
   const createResponse = await fetch(`${baseUrl}/api/content/channel`, {

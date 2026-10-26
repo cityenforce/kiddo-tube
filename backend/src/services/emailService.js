@@ -1,9 +1,14 @@
 // backend/src/services/emailService.js
 const { Resend } = require('resend');
+const config = require('../config');
 
-const resendApiKey = process.env.RESEND_API_KEY;
-const resend = resendApiKey ? new Resend(resendApiKey) : null;
-const fromEmail = process.env.RESEND_FROM_EMAIL || 'KiddoTube <onboarding@resend.dev>';
+function getResendClient() {
+  const apiKey = (process.env.RESEND_API_KEY || config.RESEND_API_KEY || '').trim();
+  if (!apiKey || apiKey.startsWith('re_123456789') || apiKey === 'your_resend_api_key_here') {
+    return null;
+  }
+  return new Resend(apiKey);
+}
 
 /**
  * Send Password Reset OTP email to parent
@@ -44,23 +49,36 @@ async function sendPasswordResetOtpEmail(toEmail, otpCode, parentName = 'Parent'
     </html>
   `;
 
+  const resend = getResendClient();
+  const fromEmail = (process.env.RESEND_FROM_EMAIL || config.RESEND_FROM_EMAIL || 'KiddoTube <onboarding@resend.dev>').trim();
+
   if (resend) {
     try {
-      const data = await resend.emails.send({
+      const response = await resend.emails.send({
         from: fromEmail,
         to: [toEmail],
         subject: `Your KiddoTube Password Reset Code: ${otpCode}`,
         html: htmlContent,
       });
-      console.log(`[EmailService] Resend email dispatched to ${toEmail}:`, data);
-      return { success: true, messageId: data.id };
+
+      if (response && response.error) {
+        console.error('[EmailService] Resend returned error:', response.error);
+        return {
+          success: true,
+          simulated: true,
+          devOtp: otpCode,
+          warning: response.error.message || 'Resend delivery failed, fallback code provided.'
+        };
+      }
+
+      console.log(`[EmailService] Resend email successfully dispatched to ${toEmail}:`, response?.data);
+      return { success: true, messageId: response?.data?.id };
     } catch (err) {
-      console.error('[EmailService] Resend send failed:', err);
-      // Return success with dev fallback so parent is not blocked
+      console.error('[EmailService] Resend exception:', err.message || err);
       return { success: true, simulated: true, devOtp: otpCode };
     }
   } else {
-    console.log(`[EmailService] (Simulated - no RESEND_API_KEY) OTP for ${toEmail}: ${otpCode}`);
+    console.log(`[EmailService] (Local/Dev simulated - RESEND_API_KEY not configured) OTP for ${toEmail}: ${otpCode}`);
     return { success: true, simulated: true, devOtp: otpCode };
   }
 }

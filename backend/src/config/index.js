@@ -17,6 +17,8 @@ module.exports = {
   JWT_SECRET: process.env.JWT_SECRET || 'kidsstream_production_secret_key_2026',
   MONGODB_URI: process.env.MONGODB_URI || '',
   MONGODB_DATABASE: process.env.MONGODB_DATABASE || 'kidsstream',
+  RESEND_API_KEY: process.env.RESEND_API_KEY || '',
+  RESEND_FROM_EMAIL: process.env.RESEND_FROM_EMAIL || 'KiddoTube <onboarding@resend.dev>',
   DEFAULT_DAILY_LIMIT_MINUTES: 60,
   PIN_MAX_FAILED_ATTEMPTS: 3,
   PIN_LOCKOUT_MS: 60 * 1000 // 60 seconds lockout
