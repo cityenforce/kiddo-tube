@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy & Family Safety Commitment - KiddoTube</title>
+  <meta name="description" content="Official Privacy Policy and Family Safety Commitment for KiddoTube. Fully compliant with COPPA, GDPR-K, Google Play Families Policy, and YouTube API Services.">
+  <meta name="robots" content="index, follow">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #E52E2E;
+      --primary-hover: #C52222;
+      --accent-yellow: #FFB703;
+      --accent-blue: #0284C7;
+      --accent-green: #10B981;
+      --text-main: #0F172A;
+      --text-muted: #475569;
+      --bg-page: #F8FAFC;
+      --bg-card: #FFFFFF;
+      --border-color: #E2E8F0;
+      --radius: 16px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-page);
+      color: var(--text-main);
+      line-height: 1.7;
+      font-size: 16px;
+      padding: 0;
+      margin: 0;
+    }
+
+    /* Top Brand Navigation */
+    .navbar {
+      background: #FFFFFF;
+      border-bottom: 2px solid var(--border-color);
+      padding: 16px 24px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.03);
+    }
+    .navbar-container {
+      max-width: 900px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .brand-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--text-main);
+    }
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, #FFBE00, #E52E2E);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #FFFFFF;
+      font-family: 'Fredoka', cursive;
+      font-size: 22px;
+      font-weight: 700;
+      box-shadow: 0 4px 10px rgba(229, 46, 46, 0.25);
+    }
+    .brand-title {
+      font-family: 'Fredoka', cursive;
+      font-size: 24px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+    .brand-title span {
+      color: var(--primary);
+    }
+    .badge-family {
+      background: #E0F2FE;
+      color: var(--accent-blue);
+      font-weight: 800;
+      font-size: 13px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 1px solid #BAE6FD;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Hero Header */
+    .hero {
+      background: linear-gradient(135deg, #FFB703 0%, #FB8500 50%, #E52E2E 100%);
+      color: #FFFFFF;
+      padding: 48px 24px;
+      text-align: center;
+    }
+    .hero-container {
+      max-width: 820px;
+      margin: 0 auto;
+    }
+    .hero h1 {
+      font-family: 'Fredoka', cursive;
+      font-size: 38px;
+      line-height: 1.25;
+      margin-bottom: 14px;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.15);
+    }
+    .hero p {
+      font-size: 18px;
+      font-weight: 600;
+      opacity: 0.95;
+      max-width: 650px;
+      margin: 0 auto 18px auto;
+    }
+    .meta-tag {
+      display: inline-block;
+      background: rgba(0,0,0,0.22);
+      color: #FFFFFF;
+      font-size: 14px;
+      font-weight: 700;
+      padding: 6px 16px;
+      border-radius: 20px;
+      backdrop-filter: blur(4px);
+    }
+
+    /* Main Container */
+    .main-content {
+      max-width: 900px;
+      margin: -24px auto 60px auto;
+      padding: 0 20px;
+    }
+
+    /* Highlights Banner / Quick Summary */
+    .summary-card {
+      background: var(--bg-card);
+      border: 2px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: 28px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+      margin-bottom: 32px;
+    }
+    .summary-card h2 {
+      font-family: 'Fredoka', cursive;
+      font-size: 22px;
+      color: var(--text-main);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .highlight-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 16px;
+      margin-top: 14px;
+    }
+    .highlight-item {
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-radius: 12px;
+      padding: 16px;
+      transition: transform 0.15s ease;
+    }
+    .highlight-item:hover {
+      transform: translateY(-2px);
+      border-color: #CBD5E1;
+    }
+    .highlight-icon {
+      font-size: 24px;
+      margin-bottom: 8px;
+    }
+    .highlight-title {
+      font-size: 15px;
+      font-weight: 800;
+      color: var(--text-main);
+      margin-bottom: 4px;
+    }
+    .highlight-desc {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* Policy Body Sections */
+    .policy-card {
+      background: var(--bg-card);
+      border: 1.5px solid var(--border-color);
+      border-radius: var(--radius);
+      padding: 32px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.02);
+    }
+    .policy-card h2 {
+      font-family: 'Fredoka', cursive;
+      font-size: 24px;
+      color: var(--text-main);
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #F1F5F9;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .policy-card h3 {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--text-main);
+      margin: 20px 0 10px 0;
+    }
+    .policy-card p {
+      margin-bottom: 14px;
+      color: #334155;
+      font-weight: 600;
+    }
+    .policy-card ul {
+      margin-left: 22px;
+      margin-bottom: 16px;
+    }
+    .policy-card li {
+      margin-bottom: 8px;
+      color: #334155;
+      font-weight: 600;
+    }
+    .policy-card strong {
+      font-weight: 800;
+      color: var(--text-main);
+    }
+
+    .notice-box {
+      background: #EFF6FF;
+      border-left: 4px solid var(--accent-blue);
+      padding: 16px 20px;
+      border-radius: 8px;
+      margin: 18px 0;
+    }
+    .notice-box p {
+      color: #1E40AF;
+      font-weight: 700;
+      margin: 0;
+    }
+
+    .warning-box {
+      background: #FEF2F2;
+      border-left: 4px solid var(--primary);
+      padding: 16px 20px;
+      border-radius: 8px;
+      margin: 18px 0;
+    }
+    .warning-box p {
+      color: #991B1B;
+      font-weight: 700;
+      margin: 0;
+    }
+
+    /* Links */
+    a {
+      color: var(--accent-blue);
+      text-decoration: underline;
+      font-weight: 700;
+    }
+    a:hover {
+      color: #0369A1;
+    }
+
+    /* Contact Table */
+    .contact-box {
+      background: #F1F5F9;
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 16px;
+    }
+    .contact-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 16px;
+      margin-bottom: 10px;
+    }
+    .contact-label {
+      width: 140px;
+      font-weight: 800;
+      color: var(--text-main);
+    }
+    .contact-val {
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+
+    /* Footer */
+    footer {
+      background: #FFFFFF;
+      border-top: 1px solid var(--border-color);
+      padding: 32px 20px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 14px;
+      font-weight: 600;
+    }
+    footer p {
+      margin-bottom: 6px;
+    }
+
+    @media (max-width: 640px) {
+      .hero h1 { font-size: 28px; }
+      .hero p { font-size: 16px; }
+      .policy-card { padding: 22px 18px; }
+      .brand-title { font-size: 20px; }
+      .navbar { padding: 12px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Sticky Navigation -->
+  <header class="navbar">
+    <div class="navbar-container">
+      <a href="#" class="brand-logo" aria-label="KiddoTube Home">
+        <div class="brand-icon">▶</div>
+        <div class="brand-title">Kiddo<span>Tube</span></div>
+      </a>
+      <span class="badge-family">🛡️ Google Play Families Compliant</span>
+    </div>
+  </header>
+
+  <!-- Hero Banner -->
+  <section class="hero">
+    <div class="hero-container">
+      <h1>Privacy Policy & Family Safety Commitment</h1>
+      <p>A safe, ad-free, parent-supervised video platform built exclusively for children and young explorers.</p>
+      <div class="meta-tag">Effective Date & Last Updated: November 1, 2026</div>
+    </div>
+  </section>
+
+  <main class="main-content">
+
+    <!-- Quick Highlights Summary for Parents & Google Play Reviewers -->
+    <section class="summary-card">
+      <h2>🌟 Key Safety & Privacy Highlights at a Glance</h2>
+      <p>At KiddoTube, children's safety and privacy are not afterthoughts—they are the core foundation upon which the application is built:</p>
+      <div class="highlight-grid">
+        <div class="highlight-item">
+          <div class="highlight-icon">🛡️</div>
+          <div class="highlight-title">100% Parent-Approved</div>
+          <div class="highlight-desc">Kids can only watch videos, channels, and playlists explicitly vetted and approved by parents.</div>
+        </div>
+        <div class="highlight-item">
+          <div class="highlight-icon">🚫</div>
+          <div class="highlight-title">Zero Ads & Tracking</div>
+          <div class="highlight-desc">No commercial advertisements, no behavioral tracking SDKs, no cookies, and no profiling of children.</div>
+        </div>
+        <div class="highlight-item">
+          <div class="highlight-icon">⏱️</div>
+          <div class="highlight-title">Screen Time & Eye Care</div>
+          <div class="highlight-desc">Automated daily screen time locks and 20-minute eye break reminders to promote healthy digital habits.</div>
+        </div>
+        <div class="highlight-item">
+          <div class="highlight-icon">🔒</div>
+          <div class="highlight-title">COPPA & GDPR-K Ready</div>
+          <div class="highlight-desc">No personal identifiers, emails, phones, locations, or photos collected from children. Pseudonymous avatars only.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Section 1: Introduction & App Scope -->
+    <article class="policy-card">
+      <h2>1. Introduction & Our Mission</h2>
+      <p>
+        Welcome to <strong>KiddoTube</strong> (referred to as "the App", "we", "our", or "us"). KiddoTube is operated by <strong>Sheraz Ali Developer</strong> ("Service Provider") to provide families and children with a curated, safe, and positive video streaming experience.
+      </p>
+      <p>
+        KiddoTube operates strictly under a <strong>Parent-Managed Walled Garden</strong> model. Unlike open video-sharing platforms, KiddoTube contains no open internet browser, no algorithmic recommendations, and no direct communication features. Children can only explore content that their parent or legal guardian has intentionally added and approved for them.
+      </p>
+      <p>
+        This Privacy Policy explains how information is handled when parents and children use the KiddoTube application on Android mobile and tablet devices, in full compliance with the <strong>Google Play Families Policy</strong>, the <strong>Children's Online Privacy Protection Act (COPPA)</strong>, and the <strong>EU General Data Protection Regulation (GDPR-K)</strong>.
+      </p>
+    </article>
+
+    <!-- Section 2: Information We Collect -->
+    <article class="policy-card">
+      <h2>2. Information Collection & Use</h2>
+      
+      <h3>A. Information Collected from Children (Under 13 / 16)</h3>
+      <p>
+        <strong>KiddoTube DOES NOT collect personally identifiable information (PII) from children.</strong>
+      </p>
+      <ul>
+        <li><strong>No Real Names or Contact Data:</strong> We never ask children for their full legal name, email address, home address, phone number, school, or social media handles.</li>
+        <li><strong>Pseudonymous Profiles Only:</strong> Child explorer profiles are created solely by the parent and consist only of a nickname (e.g. "Fatima" or "Explorer"), an avatar emoji (e.g. 🚀, 🐧, 🦁), and an age band (e.g. 3–5, 6–8) to help parents tailor content.</li>
+        <li><strong>No Biometric or Visual Data:</strong> We do not access the device camera, microphone, or photo gallery for child users.</li>
+        <li><strong>No Precise Location Tracking:</strong> We never access or track the device's GPS or precise geographic location.</li>
+        <li><strong>No Advertising Identifiers:</strong> We do not collect Google Advertising IDs (GAID) or persistent device identifiers for advertising or user tracking.</li>
+      </ul>
+
+      <h3>B. Information Collected from Parents & Legal Guardians (Adults 18+)</h3>
+      <p>
+        To set up and administer parental controls, the parent creates an account providing:
+      </p>
+      <ul>
+        <li><strong>Parent Email Address:</strong> Used strictly for account sign-in, essential security notices, and one-time password (OTP) verification for password recovery.</li>
+        <li><strong>Parent Password & PIN:</strong> Cryptographically hashed using industry-standard bcrypt. Plaintext passwords and PINs are never stored or visible to anyone.</li>
+        <li><strong>Curated Whitelist Data:</strong> YouTube video IDs, playlist IDs, and channel IDs that the parent chooses to whitelist for their children.</li>
+        <li><strong>Daily Screen Time Limits:</strong> Time limits configured by parents to supervise their children's viewing habits.</li>
+      </ul>
+
+      <div class="notice-box">
+        <p>💡 <strong>Note on Child Login:</strong> Child accounts use a local username and child password created by the parent inside the Parent Dashboard. These credentials belong to the family account and are never shared with external advertisers or third parties.</p>
+      </div>
+    </article>
+
+    <!-- Section 3: 100% Parent-Approved Content & Zero Social Features -->
+    <article class="policy-card">
+      <h2>3. Content Moderation & Safe Streaming Architecture</h2>
+      <p>
+        KiddoTube guarantees a safe digital space through its unique architecture:
+      </p>
+      <ul>
+        <li><strong>Zero Open Browsing:</strong> Children cannot navigate to external websites, tap outbound web links, or browse unapproved channels.</li>
+        <li><strong>Zero Social Interactions:</strong> The application contains <strong>NO public comments, NO live chat, NO direct messaging, and NO social media sharing buttons</strong>. Children can never be contacted by strangers.</li>
+        <li><strong>Whitelisted In-App Search:</strong> The search feature inside the child mode searches <em>only</em> within the parent's approved video database. Children cannot search YouTube or the open internet directly.</li>
+        <li><strong>Hidden Adult Gate:</strong> All parental settings, account details, and video approvals are locked behind a parental authentication gate (PIN / password) to ensure children cannot modify safety settings.</li>
+      </ul>
+    </article>
+
+    <!-- Section 4: YouTube API Services Compliance -->
+    <article class="policy-card">
+      <h2>4. Third-Party Video Services (YouTube API Services)</h2>
+      <p>
+        KiddoTube enables parents to import and stream educational and entertaining video content hosted on YouTube using official <strong>YouTube API Services</strong> and embedded web player components.
+      </p>
+      <p>
+        In accordance with the <strong>YouTube API Services Terms of Service</strong> and <strong>Google Developer Policies</strong>:
+      </p>
+      <ul>
+        <li>By using KiddoTube to play YouTube videos, you agree to be bound by the <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener noreferrer">YouTube Terms of Service</a>.</li>
+        <li>Video streaming and player infrastructure are governed by the <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google Privacy Policy</a>.</li>
+        <li><strong>Restricted Kid-Safe Playback:</strong> KiddoTube embeds videos using strict safety parameters (<code>modestbranding=1</code>, <code>rel=0</code>, <code>iv_load_policy=3</code>, <code>controls=0</code>, <code>disablekb=1</code>, and <code>youtube-nocookie.com</code> origin) to suppress related unapproved video suggestions and native annotations.</li>
+        <li>KiddoTube does <strong>NOT</strong> transmit any child personal identifiers, viewing histories, or account profiles to YouTube or Google.</li>
+        <li>KiddoTube does not store or distribute raw video files; streaming occurs directly through official embedded player components in accordance with YouTube guidelines.</li>
+      </ul>
+    </article>
+
+    <!-- Section 5: Zero Third-Party Advertising & No Tracking -->
+    <article class="policy-card">
+      <h2>5. Zero Commercial Ads & No Behavioral Tracking</h2>
+      <p>
+        KiddoTube is proudly committed to protecting young minds:
+      </p>
+      <ul>
+        <li><strong>NO Ad SDKs:</strong> We do not integrate any third-party advertising SDKs (e.g. AdMob, Unity Ads, Facebook Audience Network).</li>
+        <li><strong>NO Targeted or Behavioral Advertising:</strong> We never track children's behavior across apps or websites to serve targeted ads.</li>
+        <li><strong>NO Cookies or Tracking Pixels:</strong> KiddoTube mobile app does not use marketing cookies, tracking pixels, or cross-app analytics for profiling.</li>
+        <li><strong>NO Data Selling:</strong> We never sell, lease, rent, or trade user data (parent or child) to data brokers, advertisers, or any commercial entities.</li>
+      </ul>
+    </article>
+
+    <!-- Section 6: Screen Time & Digital Well-being -->
+    <article class="policy-card">
+      <h2>6. Screen Time & Digital Well-Being</h2>
+      <p>
+        KiddoTube promotes balanced digital habits in accordance with pediatric health recommendations:
+      </p>
+      <ul>
+        <li><strong>Customizable Daily Timers:</strong> Parents can configure daily screen time limits (from 15 minutes up to 8 hours) globally or individually per child.</li>
+        <li><strong>Automated Lock Screen:</strong> Once the daily allowance is reached, video playback immediately stops and the screen locks with a friendly "Time Out" screen until parent PIN authorization.</li>
+        <li><strong>20-Minute Eye Break Reminders:</strong> Parents can enable visual break reminders every 20 minutes to prevent eye fatigue.</li>
+      </ul>
+    </article>
+
+    <!-- Section 7: Parental Rights, Data Retention & Deletion -->
+    <article class="policy-card">
+      <h2>7. Parental Rights, Data Retention & Complete Deletion</h2>
+      <p>
+        Parents and legal guardians retain complete authority over all data stored in KiddoTube:
+      </p>
+      <ul>
+        <li><strong>Reviewing & Editing Data:</strong> Parents can view and update child nicknames, passwords, and approved video libraries at any time via the Parent Dashboard.</li>
+        <li><strong>Child Profile Deletion:</strong> Parents can instantly delete any child profile. Deletion immediately purges the profile, encrypted credentials, and associated watch time records from our database.</li>
+        <li><strong>Full Account Deletion:</strong> Parents can delete their entire account and all family records directly in the app or by submitting a deletion request. When deleted, all records are permanently erased within 24 to 48 hours.</li>
+        <li><strong>Data Retention Policy:</strong> We retain parent account data only as long as the parent maintains an active account. If an account is inactive or requested to be removed, it is completely deleted.</li>
+      </ul>
+
+      <div class="warning-box">
+        <p>🗑️ <strong>How to Request Data Deletion:</strong> You can delete any child profile or your parent account directly inside the app under <em>Parent Dashboard → Settings</em>, or by emailing us at <a href="mailto:cityenforce@gmail.com">cityenforce@gmail.com</a> with the subject "Data Deletion Request".</p>
+      </div>
+    </article>
+
+    <!-- Section 8: Information Security -->
+    <article class="policy-card">
+      <h2>8. Information Security & Technical Safeguards</h2>
+      <p>
+        We take the protection of family data seriously and employ robust technical safeguards:
+      </p>
+      <ul>
+        <li><strong>End-to-End Transport Security:</strong> All network communications between the mobile application and our servers are encrypted using modern HTTPS and Transport Layer Security (TLS 1.2+).</li>
+        <li><strong>Cryptographic Hashing:</strong> Passwords and Parental PINs are one-way hashed with bcrypt using strong salt factors.</li>
+        <li><strong>Database Isolation:</strong> Family databases enforce multi-tenant isolation so no parent or child can ever access another family's settings or profiles.</li>
+      </ul>
+    </article>
+
+    <!-- Section 9: International Transfers & Compliance -->
+    <article class="policy-card">
+      <h2>9. International Compliance (COPPA, GDPR-K & California)</h2>
+      <ul>
+        <li><strong>COPPA (United States):</strong> Compliant with the Children's Online Privacy Protection Act. Verifiable parental consent is obtained prior to account activation. No child personal data is collected or disclosed.</li>
+        <li><strong>GDPR / GDPR-K (European Union & UK):</strong> Parents have the right to access, rectify, port, and erase their personal data under Articles 15–20 of GDPR. Processing is grounded in parental consent and contractual necessity to provide the service.</li>
+        <li><strong>California Consumer Privacy Act (CCPA / CPRA):</strong> We do not sell or share personal information of any users, including minors under 16 years of age.</li>
+      </ul>
+    </article>
+
+    <!-- Section 10: Policy Updates & Contact -->
+    <article class="policy-card">
+      <h2>10. Policy Updates & Contact Us</h2>
+      <p>
+        We may update this Privacy Policy from time to time to reflect improvements to our app or changes in legal requirements. Material updates will be highlighted within the app and on this webpage with an updated Effective Date.
+      </p>
+      <p>
+        If you have any questions, concerns, feedback, or data privacy requests, please contact our dedicated support team:
+      </p>
+
+      <div class="contact-box">
+        <div class="contact-row">
+          <span class="contact-label">App Name:</span>
+          <span class="contact-val">KiddoTube (Kids Video Platform)</span>
+        </div>
+        <div class="contact-row">
+          <span class="contact-label">Developer:</span>
+          <span class="contact-val">Sheraz Ali Developer</span>
+        </div>
+        <div class="contact-row">
+          <span class="contact-label">Contact Email:</span>
+          <span class="contact-val"><a href="mailto:cityenforce@gmail.com">cityenforce@gmail.com</a></span>
+        </div>
+        <div class="contact-row">
+          <span class="contact-label">Privacy URL:</span>
+          <span class="contact-val"><a href="https://mediumvioletred-bear-195908.hostingersite.com/privacy.html">https://mediumvioletred-bear-195908.hostingersite.com/privacy.html</a></span>
+        </div>
+        <div class="contact-row">
+          <span class="contact-label">Jurisdiction:</span>
+          <span class="contact-val">COPPA, GDPR-K, Google Play Families Program</span>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <p><strong>KiddoTube</strong> &copy; 2026 Sheraz Ali Developer. All Rights Reserved.</p>
+    <p>KiddoTube is an independent family safety platform designed to empower parents with clean, safe digital spaces for their children.</p>
+    <p style="margin-top: 8px; font-size: 13px;">YouTube is a trademark of Google LLC. KiddoTube is not endorsed by or affiliated with Google LLC.</p>
+  </footer>
+
+</body>
+</html>

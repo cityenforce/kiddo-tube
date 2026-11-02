@@ -48,6 +48,12 @@ async function updateDailyLimit(parentId, newLimitMinutes) {
     throw { statusCode: 404, message: 'Parent account not found' };
   }
 
+  // Synchronize all children under this parent to the new global limit
+  const children = await db.findChildrenByParentId(parentId);
+  for (const c of children) {
+    await db.updateChild(c.id, { dailyLimitMinutes: limit });
+  }
+
   return {
     success: true,
     dailyLimitMinutes: updated.dailyLimitMinutes,

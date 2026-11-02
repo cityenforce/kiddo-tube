@@ -17,7 +17,7 @@ async function getChildren(parentId) {
     const { passwordHash, passwordEncrypted, plainPassword, ...safeChild } = c;
     results.push({
       ...safeChild,
-      dailyLimitMinutes,
+      dailyLimitMinutes: c.dailyLimitMinutes !== undefined ? c.dailyLimitMinutes : dailyLimitMinutes,
       secondsWatchedToday: watchRecord.secondsWatched,
       minutesWatchedToday: Math.floor(watchRecord.secondsWatched / 60),
       tempExtensionMinutes: watchRecord.tempExtensionMinutes
@@ -82,6 +82,12 @@ async function updateChild(parentId, childId, updates) {
   if (updates.colorHex !== undefined) allowedFields.colorHex = updates.colorHex;
   if (updates.ageGroup !== undefined) allowedFields.ageGroup = Number(updates.ageGroup);
   if (updates.status !== undefined) allowedFields.status = updates.status;
+  if (updates.dailyLimitMinutes !== undefined) {
+    const lim = Number(updates.dailyLimitMinutes);
+    if (!isNaN(lim) && lim >= 0) {
+      allowedFields.dailyLimitMinutes = lim;
+    }
+  }
 
   const updated = await db.updateChild(childId, allowedFields);
   const { passwordHash, passwordEncrypted, plainPassword, ...safeChild } = updated;

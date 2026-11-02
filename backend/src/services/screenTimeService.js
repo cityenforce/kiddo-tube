@@ -3,7 +3,10 @@ const { getTodayDateString } = require('../utils/dateUtils');
 
 async function getScreenTimeStatus(parentId, childId) {
   const parent = await db.findParentById(parentId);
-  const dailyLimitMinutes = parent ? parent.dailyLimitMinutes : 60;
+  const child = await db.findChildById(childId);
+  const dailyLimitMinutes = (child && child.dailyLimitMinutes !== undefined)
+    ? child.dailyLimitMinutes
+    : (parent ? parent.dailyLimitMinutes : 60);
   const today = getTodayDateString();
 
   const record = await db.getWatchTimeRecord(parentId, childId, today);

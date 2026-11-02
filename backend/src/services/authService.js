@@ -148,7 +148,9 @@ async function loginChild({ username, password, profileId }) {
     throw { statusCode: 403, message: 'Parent account is currently deactivated.' };
   }
 
-  const dailyLimitMinutes = parent.dailyLimitMinutes || 60;
+  const dailyLimitMinutes = child.dailyLimitMinutes !== undefined
+    ? child.dailyLimitMinutes
+    : (parent.dailyLimitMinutes || 60);
 
   const token = generateSessionToken('child');
   await db.createSession(token, {

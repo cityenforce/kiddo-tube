@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 
 const authRoutes = require('./routes/authRoutes');
 const parentRoutes = require('./routes/parentRoutes');
@@ -12,6 +13,12 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+// Serve static assets & Google Play Privacy Policy
+app.use(express.static(path.join(__dirname, '../public')));
+app.get(['/privacy', '/privacy.html'], (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/privacy.html'));
+});
 
 // System health probe
 app.get('/api/health', (req, res) => {
