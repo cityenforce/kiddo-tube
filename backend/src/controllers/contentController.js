@@ -121,6 +121,20 @@ async function removeChannel(req, res, next) {
   }
 }
 
+async function syncChannelHandler(req, res, next) {
+  try {
+    const parentId = await resolveParentId(req);
+    if (!parentId) {
+      return res.status(401).json({ success: false, error: 'Authentication required' });
+    }
+    const { id } = req.params;
+    const result = await contentService.syncChannel(parentId, id);
+    return res.status(200).json(result);
+  } catch (err) {
+    next(err);
+  }
+}
+
 async function addPlaylist(req, res, next) {
   try {
     const parentId = await resolveParentId(req);
@@ -175,14 +189,106 @@ async function removeVideo(req, res, next) {
   }
 }
 
+let ytdlInstance = null;
+function getYtdl() {
+  if (!ytdlInstance) {
+    const ytdl = require('@distube/ytdl-core');
+    ytdlInstance = new ytdl.Ytdl({
+      clients: [ytdl.Client.Tv, ytdl.Client.Mweb, ytdl.Client.WebEmbedded]
+    });
+  }
+  return ytdlInstance;
+}
+
+async function streamVideo(req, res) {
+  const { youtubeId } = req.params;
+  if (!youtubeId || typeof youtubeId !== 'string') {
+    return res.status(400).json({ success: false, error: 'Missing youtubeId' });
+  }
+
+  try {
+    const client = getYtdl();
+    const info = await client.getInfo(youtubeId);
+
+    // Prioritize format 18 (360p MP4 muxed with video and audio) or any muxed audio+video format
+    const chosenFormat =
+      info.formats.find((f) => f.itag === 18 && f.hasAudio && f.hasVideo) ||
+      info.formats.find((f) => f.itag === 18) ||
+      info.formats.find((f) => f.hasVideo && f.hasAudio && f.container === 'mp4') ||
+      info.formats.find((f) => f.hasVideo && f.hasAudio) ||
+      info.formats.find((f) => f.container === 'mp4');
+
+    if (!chosenFormat) {
+      console.warn(`[streamVideo] No playable format found for ${youtubeId}`);
+      return res.status(404).json({ success: false, error: 'No stream format found for video' });
+    }
+
+    const rangeHeader = req.headers.range;
+    let downloadOptions = { format: chosenFormat };
+
+    res.setHeader('Content-Type', 'video/mp4');
+    res.setHeader('Content-Disposition', `attachment; filename="${youtubeId}.mp4"`);
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+
+    if (rangeHeader && chosenFormat.contentLength) {
+      const totalSize = parseInt(chosenFormat.contentLength, 10);
+      const parts = rangeHeader.replace(/bytes=/, '').split('-');
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : totalSize - 1;
+
+      if (!isNaN(start) && start < totalSize) {
+        res.status(206);
+        res.setHeader('Content-Range', `bytes ${start}-${end}/${totalSize}`);
+        res.setHeader('Content-Length', end - start + 1);
+        downloadOptions.range = { start, end };
+      } else {
+        res.setHeader('Content-Length', chosenFormat.contentLength);
+      }
+    } else if (chosenFormat.contentLength) {
+      res.setHeader('Content-Length', chosenFormat.contentLength);
+    }
+
+    const stream = client.download(info, downloadOptions);
+
+    stream.on('response', (response) => {
+      if (response && response.headers && response.headers['content-length'] && !res.getHeader('Content-Length')) {
+        res.setHeader('Content-Length', response.headers['content-length']);
+      }
+    });
+
+    stream.on('error', (err) => {
+      console.warn(`[ytdl-stream error for ${youtubeId}]:`, err.message);
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, error: err.message });
+      }
+    });
+
+    req.on('close', () => {
+      try {
+        if (typeof stream.destroy === 'function') stream.destroy();
+      } catch {}
+    });
+
+    stream.pipe(res);
+  } catch (err) {
+    console.warn(`[ytdl stream exception for ${youtubeId}]:`, err.message);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  }
+}
+
 module.exports = {
   getApprovedVideos,
   getVideoById,
   searchContent,
   addChannel,
   removeChannel,
+  syncChannel: syncChannelHandler,
   addPlaylist,
   removePlaylist,
   addVideo,
-  removeVideo
+  removeVideo,
+  streamVideo,
 };

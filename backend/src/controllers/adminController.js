@@ -18,6 +18,7 @@ async function getAdminDashboardHandler(req, res, next) {
     const disabledChildren = children.filter(c => c.status === ACCOUNT_STATUS.DISABLED).length;
 
     const stats = {
+      totalUsers: parents.length + children.length,
       totalParents: parents.length,
       activeParents,
       disabledParents,
@@ -172,17 +173,112 @@ async function toggleChildStatusHandler(req, res, next) {
 
 async function getAllContentHandler(req, res, next) {
   try {
+    const parents = await db.getAllParents();
+    const children = await db.getAllChildren();
     const channels = await db.getAllSystemChannels();
     const playlists = await db.getAllSystemPlaylists();
     const videos = await db.getAllSystemVideos();
 
+    const parentMap = new Map();
+    parents.forEach(p => {
+      parentMap.set(String(p.id), p.displayName || p.username);
+    });
+
+    const childMap = new Map();
+    children.forEach(c => {
+      childMap.set(String(c.id), c.displayName || c.username);
+    });
+
+    const enrichedChannels = channels.map(ch => ({
+      ...ch,
+      parentName: parentMap.get(String(ch.parentId)) || 'Unknown Parent',
+      allowedChildNames: (ch.childIds || []).map(cid => childMap.get(String(cid))).filter(Boolean)
+    }));
+
+    const enrichedPlaylists = playlists.map(pl => ({
+      ...pl,
+      parentName: parentMap.get(String(pl.parentId)) || 'Unknown Parent',
+      allowedChildNames: (pl.childIds || []).map(cid => childMap.get(String(cid))).filter(Boolean)
+    }));
+
+    const enrichedVideos = videos.map(vid => {
+      const parentName = parentMap.get(String(vid.parentId)) || 'Unknown Parent';
+      const allowedChildNames = (vid.childIds || []).map(cid => childMap.get(String(cid))).filter(Boolean);
+
+      const matchedPlaylist = playlists.find(pl =>
+        pl.parentId === vid.parentId &&
+        Array.isArray(pl.videoIds) &&
+        (pl.videoIds.includes(vid.id) || pl.videoIds.includes(vid.youtubeId))
+      );
+
+      const matchedChannel = channels.find(ch =>
+        ch.parentId === vid.parentId &&
+        ch.title &&
+        vid.channelTitle &&
+        ch.title.toLowerCase().trim() === vid.channelTitle.toLowerCase().trim()
+      );
+
+      let sourceType = 'DIRECT';
+      let sourceName = 'Direct Video';
+      if (matchedPlaylist) {
+        sourceType = 'PLAYLIST';
+        sourceName = `Playlist: ${matchedPlaylist.title}`;
+      } else if (matchedChannel) {
+        sourceType = 'CHANNEL';
+        sourceName = matchedChannel.title;
+      }
+
+      return {
+        ...vid,
+        parentName,
+        allowedChildNames,
+        sourceType,
+        sourceName
+      };
+    });
+
     return res.status(200).json({
       success: true,
       data: {
-        channels,
-        playlists,
-        videos
+        channels: enrichedChannels,
+        playlists: enrichedPlaylists,
+        videos: enrichedVideos
       }
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function deleteParentHandler(req, res, next) {
+  try {
+    const { parentId } = req.params;
+    const parent = await db.findParentById(parentId);
+    if (!parent) {
+      return res.status(404).json({ success: false, error: 'Parent account not found' });
+    }
+    await db.deleteParent(parentId);
+    return res.status(200).json({
+      success: true,
+      message: `Parent account "${parent.username}" and associated data permanently deleted.`
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+async function deleteChildHandler(req, res, next) {
+  try {
+    const { childId } = req.params;
+    const child = await db.findChildById(childId);
+    if (!child) {
+      return res.status(404).json({ success: false, error: 'Child account not found' });
+    }
+    await db.deleteChild(childId);
+    await db.deleteSessionsForChild(childId);
+    return res.status(200).json({
+      success: true,
+      message: `Child account "${child.displayName || child.username}" permanently deleted.`
     });
   } catch (err) {
     next(err);
@@ -289,8 +385,10 @@ module.exports = {
   getAllParentsHandler,
   createParentHandler,
   toggleParentStatusHandler,
+  deleteParentHandler,
   getAllChildrenHandler,
   toggleChildStatusHandler,
+  deleteChildHandler,
   getAllContentHandler,
   moderateContentHandler
 };

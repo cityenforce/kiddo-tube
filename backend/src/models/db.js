@@ -488,6 +488,22 @@ class MongoDatabase {
     return docs.map(d => this.mapDoc(d));
   }
 
+  async deleteParent(id) {
+    const db = await this.getDb();
+    const parentIdStr = String(id);
+    const children = await db.collection('children').find({ parentId: parentIdStr }).toArray();
+    for (const child of children) {
+      await this.deleteChild(child._id || child.id);
+    }
+    await db.collection('videos').deleteMany({ parentId: parentIdStr });
+    await db.collection('channels').deleteMany({ parentId: parentIdStr });
+    await db.collection('playlists').deleteMany({ parentId: parentIdStr });
+    await db.collection('pinAttempts').deleteMany({ parentId: parentIdStr });
+    await this.deleteSessionsForParent(parentIdStr);
+    const result = await db.collection('parents').deleteOne({ _id: parentIdStr });
+    return result.deletedCount > 0;
+  }
+
   // --- Children ---
   async findChildById(id) {
     const db = await this.getDb();

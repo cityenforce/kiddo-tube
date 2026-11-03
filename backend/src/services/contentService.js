@@ -162,6 +162,47 @@ async function removeChannel(parentId, id) {
   return { success: true, message: `Channel "${channel.title}" and associated videos removed` };
 }
 
+async function syncChannel(parentId, idOrChannelId) {
+  let channel = await db.findChannelById(idOrChannelId);
+  if (!channel) {
+    const dbInstance = await db.getDb();
+    channel = await dbInstance.collection('channels').findOne({ parentId, channelId: idOrChannelId });
+  }
+  if (!channel || channel.parentId !== parentId) {
+    throw { statusCode: 404, message: 'Channel not found' };
+  }
+
+  const youtubeChannel = await youtubeCatalog.getChannel(channel.channelId);
+  const uploadsPlaylist = youtubeChannel.contentDetails?.relatedPlaylists?.uploads;
+  if (!uploadsPlaylist) {
+    return { success: true, addedCount: 0, message: 'Channel uploads playlist not found' };
+  }
+
+  const videoIds = await youtubeCatalog.getChannelVideos(uploadsPlaylist);
+  const existingVideos = await db.getVideos(parentId);
+  const existingSet = new Set(existingVideos.map((v) => v.youtubeId));
+  const newVideoIds = videoIds.filter((vid) => !existingSet.has(vid));
+
+  let addedCount = 0;
+  if (newVideoIds.length > 0) {
+    const newMetadata = await youtubeCatalog.getVideoMetadata(newVideoIds);
+    await saveApprovedVideos(parentId, newMetadata, channel.title, channel.category || 'SHOWS', channel.childIds || []);
+    addedCount = newMetadata.length;
+    const dbInstance = await db.getDb();
+    await dbInstance.collection('channels').updateOne(
+      { id: channel.id },
+      { $inc: { videoCount: addedCount } }
+    );
+  }
+
+  return {
+    success: true,
+    addedCount,
+    totalVideos: (channel.videoCount || 0) + addedCount,
+    message: addedCount > 0 ? `Synced ${addedCount} new videos from ${channel.title}` : `Channel "${channel.title}" is up to date`
+  };
+}
+
 async function addPlaylist(parentId, { title, playlistUrlOrId, channelTitle, thumbnailUrl, videoIds = [], category, childIds: requestedChildIds }) {
   const childIds = await normalizeChildIds(parentId, requestedChildIds);
   const cleanPlaylistId = extractYouTubePlaylistId(playlistUrlOrId);
@@ -255,6 +296,7 @@ module.exports = {
   getVideoById,
   addChannel,
   removeChannel,
+  syncChannel,
   addPlaylist,
   removePlaylist,
   addVideo,

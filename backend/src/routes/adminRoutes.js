@@ -14,11 +14,15 @@ router.post('/users', adminController.createParentHandler);
 router.patch('/parents/:parentId/toggle-status', adminController.toggleParentStatusHandler);
 router.put('/parent/:parentId/status', adminController.toggleParentStatusHandler);
 router.put('/parents/:parentId/status', adminController.toggleParentStatusHandler);
+router.delete('/parents/:parentId', adminController.deleteParentHandler);
+router.delete('/parent/:parentId', adminController.deleteParentHandler);
 
 router.get('/children', adminController.getAllChildrenHandler);
 router.patch('/children/:childId/toggle-status', adminController.toggleChildStatusHandler);
 router.put('/child/:childId/status', adminController.toggleChildStatusHandler);
 router.put('/children/:childId/status', adminController.toggleChildStatusHandler);
+router.delete('/children/:childId', adminController.deleteChildHandler);
+router.delete('/child/:childId', adminController.deleteChildHandler);
 
 router.get('/content', adminController.getAllContentHandler);
 router.post('/content/moderate', adminController.moderateContentHandler);

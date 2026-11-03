@@ -114,8 +114,9 @@ async function loginChild({ username, password, profileId }) {
     throw { statusCode: 401, message: 'Child profile not found. Ask mom or dad for help!' };
   }
 
-  if (child.status === ACCOUNT_STATUS.DISABLED) {
-    throw { statusCode: 403, message: 'This explorer profile has been paused by parents.' };
+  if (child.status === ACCOUNT_STATUS.DISABLED || child.status === ACCOUNT_STATUS.BLOCKED) {
+    const childName = child.displayName || child.username || 'child';
+    throw { statusCode: 403, message: `This child account '${childName}' has been deactivated.` };
   }
 
   // Real authentication: child must supply the correct password configured by parent
@@ -129,11 +130,9 @@ async function loginChild({ username, password, profileId }) {
     throw { statusCode: 401, message: 'Incorrect password. Ask mom or dad for help!' };
   }
 
-  if (child.status === ACCOUNT_STATUS.BLOCKED) {
-    throw { statusCode: 403, message: 'This child profile has been blocked by the administrator.' };
-  }
-  if (child.status === ACCOUNT_STATUS.DISABLED) {
-    throw { statusCode: 403, message: 'This child profile is deactivated.' };
+  if (child.status === ACCOUNT_STATUS.BLOCKED || child.status === ACCOUNT_STATUS.DISABLED) {
+    const childName = child.displayName || child.username || 'child';
+    throw { statusCode: 403, message: `This child account '${childName}' has been deactivated.` };
   }
 
   // Get parent settings to load shared daily limit
