@@ -192,10 +192,27 @@ async function removeVideo(req, res, next) {
 let ytdlInstance = null;
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+function normalizeYoutubeCookie(value) {
+  const text = value?.trim();
+  if (!text) return undefined;
+  if (text.includes('\t')) return text;
+  if (text.includes(';')) return text;
+
+  // Some hosting panels flatten Netscape cookies.txt into one line and
+  // remove the tabs/newlines required by ytdl-core's Netscape parser.
+  const cookies = [];
+  const flattenedLine = /(?:^|\s)(#HttpOnly_)?\.?youtube\.com\s+TRUE\s+\S+\s+TRUE\s+\d+\s+([^\s]+)\s+([^\s]+)/g;
+  let match;
+  while ((match = flattenedLine.exec(text)) !== null) {
+    cookies.push(`${match[2]}=${match[3]}`);
+  }
+  return cookies.length > 0 ? cookies.join('; ') : text;
+}
+
 function getYtdl() {
   if (!ytdlInstance) {
     const ytdl = require('@distube/ytdl-core');
-    const cookie = process.env.YT_COOKIE?.trim();
+    const cookie = normalizeYoutubeCookie(process.env.YT_COOKIE);
     ytdlInstance = new ytdl.Ytdl({
       clients: [
         ytdl.Client.WebCreator,
