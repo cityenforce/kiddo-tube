@@ -190,6 +190,8 @@ async function removeVideo(req, res, next) {
 }
 
 let ytdlInstance = null;
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 function getYtdl() {
   if (!ytdlInstance) {
     const ytdl = require('@distube/ytdl-core');
@@ -208,7 +210,22 @@ async function streamVideo(req, res) {
 
   try {
     const client = getYtdl();
-    const info = await client.getInfo(youtubeId);
+    let info;
+    let lastInfoError;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        info = await client.getInfo(youtubeId);
+        break;
+      } catch (error) {
+        lastInfoError = error;
+        if (attempt < 2) {
+          await wait(750 * (attempt + 1));
+        }
+      }
+    }
+    if (!info) {
+      throw lastInfoError || new Error('Unable to resolve YouTube video stream');
+    }
 
     // Prioritize format 18 (360p MP4 muxed with video and audio) or any muxed audio+video format
     const chosenFormat =
@@ -235,21 +252,28 @@ async function streamVideo(req, res) {
       const totalSize = parseInt(chosenFormat.contentLength, 10);
       const parts = rangeHeader.replace(/bytes=/, '').split('-');
       const start = parseInt(parts[0], 10);
-      const end = parts[1] ? parseInt(parts[1], 10) : totalSize - 1;
+      const requestedEnd = parts[1] ? parseInt(parts[1], 10) : totalSize - 1;
+      const end = Math.min(
+        Number.isFinite(requestedEnd) ? requestedEnd : totalSize - 1,
+        totalSize - 1
+      );
 
-      if (!isNaN(start) && start < totalSize) {
+      if (!isNaN(start) && start >= 0 && start <= end && start < totalSize) {
         res.status(206);
         res.setHeader('Content-Range', `bytes ${start}-${end}/${totalSize}`);
         res.setHeader('Content-Length', end - start + 1);
         downloadOptions.range = { start, end };
       } else {
-        res.setHeader('Content-Length', chosenFormat.contentLength);
+        res.status(416);
+        res.setHeader('Content-Range', `bytes */${totalSize}`);
+        return res.end();
       }
     } else if (chosenFormat.contentLength) {
       res.setHeader('Content-Length', chosenFormat.contentLength);
     }
 
     const stream = client.download(info, downloadOptions);
+    res.flushHeaders();
 
     stream.on('response', (response) => {
       if (response && response.headers && response.headers['content-length'] && !res.getHeader('Content-Length')) {

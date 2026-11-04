@@ -44,6 +44,12 @@ async function getAllParentsHandler(req, res, next) {
   try {
     const { search, status } = req.query;
     let parents = await db.getAllParents();
+    const allChildren = await db.getAllChildren();
+    const childrenByParentId = new Map();
+    allChildren.forEach((child) => {
+      const parentId = String(child.parentId || '');
+      childrenByParentId.set(parentId, (childrenByParentId.get(parentId) || 0) + 1);
+    });
 
     if (status) {
       parents = parents.filter(p => p.status === status.toUpperCase());
@@ -52,20 +58,19 @@ async function getAllParentsHandler(req, res, next) {
     if (search) {
       const q = search.trim().toLowerCase();
       parents = parents.filter(p =>
-        p.username.toLowerCase().includes(q) ||
-        p.email.toLowerCase().includes(q) ||
-        (p.displayName && p.displayName.toLowerCase().includes(q))
+        String(p.username || '').toLowerCase().includes(q) ||
+        String(p.email || '').toLowerCase().includes(q) ||
+        String(p.displayName || '').toLowerCase().includes(q)
       );
     }
 
     const safeParents = [];
     for (const p of parents) {
-      const children = await db.findChildrenByParentId(p.id);
       // Strictly remove password and pin hashes
       const { passwordHash, pinHash, ...safe } = p;
       safeParents.push({
         ...safe,
-        childrenCount: children.length
+        childrenCount: childrenByParentId.get(String(p.id)) || 0
       });
     }
 
@@ -180,39 +185,57 @@ async function getAllContentHandler(req, res, next) {
     const videos = await db.getAllSystemVideos();
 
     const parentMap = new Map();
+    parentMap.set('admin_1', 'System Administrator');
+    parentMap.set('admin', 'KiddoTube Admin');
+    parentMap.set('system', 'System Administrator');
+
     parents.forEach(p => {
-      parentMap.set(String(p.id), p.displayName || p.username);
+      const name = p.displayName || p.username || (p.email ? p.email.split('@')[0] : 'Parent');
+      if (p.id) parentMap.set(String(p.id), name);
+      if (p._id) parentMap.set(String(p._id), name);
+      if (p.username) parentMap.set(String(p.username), name);
+      if (p.email) parentMap.set(String(p.email).toLowerCase(), name);
     });
 
     const childMap = new Map();
     children.forEach(c => {
-      childMap.set(String(c.id), c.displayName || c.username);
+      const name = c.displayName || c.username || 'Child';
+      if (c.id) childMap.set(String(c.id), name);
+      if (c._id) childMap.set(String(c._id), name);
     });
+
+    const resolveParent = (pId) => {
+      if (!pId) return 'KiddoTube Parent';
+      const cleanId = String(pId);
+      if (parentMap.has(cleanId)) return parentMap.get(cleanId);
+      if (cleanId === 'admin_1' || cleanId === 'admin' || cleanId === 'system') return 'System Administrator';
+      return 'KiddoTube Parent';
+    };
 
     const enrichedChannels = channels.map(ch => ({
       ...ch,
-      parentName: parentMap.get(String(ch.parentId)) || 'Unknown Parent',
+      parentName: resolveParent(ch.parentId),
       allowedChildNames: (ch.childIds || []).map(cid => childMap.get(String(cid))).filter(Boolean)
     }));
 
     const enrichedPlaylists = playlists.map(pl => ({
       ...pl,
-      parentName: parentMap.get(String(pl.parentId)) || 'Unknown Parent',
+      parentName: resolveParent(pl.parentId),
       allowedChildNames: (pl.childIds || []).map(cid => childMap.get(String(cid))).filter(Boolean)
     }));
 
     const enrichedVideos = videos.map(vid => {
-      const parentName = parentMap.get(String(vid.parentId)) || 'Unknown Parent';
+      const parentName = resolveParent(vid.parentId);
       const allowedChildNames = (vid.childIds || []).map(cid => childMap.get(String(cid))).filter(Boolean);
 
       const matchedPlaylist = playlists.find(pl =>
-        pl.parentId === vid.parentId &&
+        String(pl.parentId || '') === String(vid.parentId || '') &&
         Array.isArray(pl.videoIds) &&
-        (pl.videoIds.includes(vid.id) || pl.videoIds.includes(vid.youtubeId))
+        pl.videoIds.some(id => String(id) === String(vid.id) || String(id) === String(vid.youtubeId))
       );
 
       const matchedChannel = channels.find(ch =>
-        ch.parentId === vid.parentId &&
+        String(ch.parentId || '') === String(vid.parentId || '') &&
         ch.title &&
         vid.channelTitle &&
         ch.title.toLowerCase().trim() === vid.channelTitle.toLowerCase().trim()
@@ -225,7 +248,7 @@ async function getAllContentHandler(req, res, next) {
         sourceName = `Playlist: ${matchedPlaylist.title}`;
       } else if (matchedChannel) {
         sourceType = 'CHANNEL';
-        sourceName = matchedChannel.title;
+        sourceName = matchedChannel.title || matchedChannel.channelId || 'Channel';
       }
 
       return {
