@@ -1,5 +1,6 @@
 const contentService = require('../services/contentService');
 const db = require('../models/db');
+const fs = require('node:fs');
 
 async function resolveParentId(req) {
   if (req.user) {
@@ -193,26 +194,50 @@ let ytdlInstance = null;
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function normalizeYoutubeCookie(value) {
-  const text = value?.trim();
+  const text = value?.trim()?.replace(/\\r\\n|\\n|\\r|\\t/g, (token) => {
+    if (token === '\\t') return '\t';
+    if (token === '\\n') return '\n';
+    return '\r';
+  });
   if (!text) return undefined;
   if (text.includes('\t')) return text;
-  if (text.includes(';')) return text;
 
   // Some hosting panels flatten Netscape cookies.txt into one line and
   // remove the tabs/newlines required by ytdl-core's Netscape parser.
   const cookies = [];
-  const flattenedLine = /(?:^|\s)(#HttpOnly_)?\.?youtube\.com\s+TRUE\s+\S+\s+TRUE\s+\d+\s+([^\s]+)\s+([^\s]+)/g;
+  const flattenedLine =
+    /(?:^|\s)(?:#HttpOnly_)?\.?youtube\.com\s+TRUE\s+\S+\s+TRUE\s+\d+\s+([^\s]+)\s+([^\s;]+)/g;
   let match;
   while ((match = flattenedLine.exec(text)) !== null) {
-    cookies.push(`${match[2]}=${match[3]}`);
+    cookies.push(`${match[1]}=${match[2]}`);
   }
-  return cookies.length > 0 ? cookies.join('; ') : text;
+  if (cookies.length > 0) return cookies.join('; ');
+
+  // Also accept a Cookie header embedded in copied panel text.
+  const knownCookieNames =
+    /(?:^|[;\s])((?:SAPISID|APISID|SSID|HSID|SID|LSID|PSID|PSSID|YSC|VISITOR_INFO1_LIVE|__Secure-[^=\s;]+))=([^;\s]+)/g;
+  while ((match = knownCookieNames.exec(text)) !== null) {
+    cookies.push(`${match[1]}=${match[2]}`);
+  }
+  return cookies.length > 0 ? cookies.join('; ') : undefined;
 }
 
 function getYtdl() {
   if (!ytdlInstance) {
     const ytdl = require('@distube/ytdl-core');
-    const cookie = normalizeYoutubeCookie(process.env.YT_COOKIE);
+    let rawCookie = process.env.YT_COOKIE;
+    const cookieFile = process.env.YT_COOKIE_FILE?.trim();
+    if (!rawCookie && cookieFile) {
+      try {
+        rawCookie = fs.readFileSync(cookieFile, 'utf8');
+      } catch (error) {
+        console.warn(`[YouTube] Unable to read YT_COOKIE_FILE: ${error.message}`);
+      }
+    }
+    const cookie = normalizeYoutubeCookie(rawCookie);
+    const hasSignedInCookie =
+      typeof cookie === 'string' &&
+      /(?:^|;\s*)(?:SAPISID|__Secure-3PAPISID)=/i.test(cookie);
     ytdlInstance = new ytdl.Ytdl({
       clients: [
         ytdl.Client.WebCreator,
@@ -220,10 +245,12 @@ function getYtdl() {
         ytdl.Client.Tv,
         ytdl.Client.Mweb
       ],
-      ...(cookie ? { cookie } : {})
+      ...(hasSignedInCookie ? { cookie } : {})
     });
     console.info(
-      `[YouTube] Downloader initialized with ${cookie ? 'configured authentication cookie' : 'no authentication cookie'}`
+      `[YouTube] Downloader initialized with ${
+        hasSignedInCookie ? 'configured authentication cookie' : 'no valid authentication cookie'
+      }`
     );
   }
   return ytdlInstance;
