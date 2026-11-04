@@ -212,14 +212,14 @@ async function streamVideo(req, res) {
     const client = getYtdl();
     let info;
     let lastInfoError;
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
       try {
         info = await client.getInfo(youtubeId);
         break;
       } catch (error) {
         lastInfoError = error;
-        if (attempt < 2) {
-          await wait(750 * (attempt + 1));
+        if (attempt < 4) {
+          await wait(Math.min(4000, 750 * (attempt + 1)));
         }
       }
     }
