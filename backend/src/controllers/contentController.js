@@ -195,9 +195,19 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function getYtdl() {
   if (!ytdlInstance) {
     const ytdl = require('@distube/ytdl-core');
+    const cookie = process.env.YT_COOKIE?.trim();
     ytdlInstance = new ytdl.Ytdl({
-      clients: [ytdl.Client.Tv, ytdl.Client.Mweb, ytdl.Client.WebEmbedded]
+      clients: [
+        ytdl.Client.WebCreator,
+        ytdl.Client.WebEmbedded,
+        ytdl.Client.Tv,
+        ytdl.Client.Mweb
+      ],
+      ...(cookie ? { cookie } : {})
     });
+    console.info(
+      `[YouTube] Downloader initialized with ${cookie ? 'configured authentication cookie' : 'no authentication cookie'}`
+    );
   }
   return ytdlInstance;
 }
@@ -258,7 +268,17 @@ async function streamVideo(req, res) {
   } catch (err) {
     console.warn(`[ytdl stream exception for ${youtubeId}]:`, err.message);
     if (!res.headersSent) {
-      res.status(500).json({ success: false, error: err.message });
+      const errorText = String(err?.message || '');
+      const isBotCheck =
+        err?.code === 'BOT_CHECK' ||
+        /sign in to confirm.*not a bot|confirm you.?re not a bot/i.test(errorText);
+      res.status(isBotCheck ? 503 : 502).json({
+        success: false,
+        code: isBotCheck ? 'YOUTUBE_BOT_CHECK' : 'YOUTUBE_STREAM_UNAVAILABLE',
+        error: isBotCheck
+          ? 'YouTube rejected this server as automated traffic. Configure a valid YT_COOKIE on the backend or use an official YouTube playback path.'
+          : 'YouTube did not provide a downloadable stream. Please retry later.'
+      });
     }
   }
 }
