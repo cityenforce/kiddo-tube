@@ -240,61 +240,21 @@ async function streamVideo(req, res) {
       return res.status(404).json({ success: false, error: 'No stream format found for video' });
     }
 
-    const rangeHeader = req.headers.range;
-    let downloadOptions = { format: chosenFormat };
-
-    res.setHeader('Content-Type', 'video/mp4');
-    res.setHeader('Content-Disposition', `attachment; filename="${youtubeId}.mp4"`);
-    res.setHeader('Accept-Ranges', 'bytes');
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-
-    if (rangeHeader && chosenFormat.contentLength) {
-      const totalSize = parseInt(chosenFormat.contentLength, 10);
-      const parts = rangeHeader.replace(/bytes=/, '').split('-');
-      const start = parseInt(parts[0], 10);
-      const requestedEnd = parts[1] ? parseInt(parts[1], 10) : totalSize - 1;
-      const end = Math.min(
-        Number.isFinite(requestedEnd) ? requestedEnd : totalSize - 1,
-        totalSize - 1
-      );
-
-      if (!isNaN(start) && start >= 0 && start <= end && start < totalSize) {
-        res.status(206);
-        res.setHeader('Content-Range', `bytes ${start}-${end}/${totalSize}`);
-        res.setHeader('Content-Length', end - start + 1);
-        downloadOptions.range = { start, end };
-      } else {
-        res.status(416);
-        res.setHeader('Content-Range', `bytes */${totalSize}`);
-        return res.end();
-      }
-    } else if (chosenFormat.contentLength) {
-      res.setHeader('Content-Length', chosenFormat.contentLength);
+    if (!chosenFormat.url) {
+      return res.status(502).json({
+        success: false,
+        error: 'YouTube returned a format without a downloadable URL'
+      });
     }
 
-    const stream = client.download(info, downloadOptions);
-    res.flushHeaders();
-
-    stream.on('response', (response) => {
-      if (response && response.headers && response.headers['content-length'] && !res.getHeader('Content-Length')) {
-        res.setHeader('Content-Length', response.headers['content-length']);
-      }
-    });
-
-    stream.on('error', (err) => {
-      console.warn(`[ytdl-stream error for ${youtubeId}]:`, err.message);
-      if (!res.headersSent) {
-        res.status(500).json({ success: false, error: err.message });
-      }
-    });
-
-    req.on('close', () => {
-      try {
-        if (typeof stream.destroy === 'function') stream.destroy();
-      } catch {}
-    });
-
-    stream.pipe(res);
+    // Do not proxy the complete media stream through Hostinger. Long-running
+    // proxied streams can be terminated by the hosting layer and leave the
+    // native downloader with a partial file. The signed CDN URL is freshly
+    // resolved for every request, so retries and Range requests get a fresh
+    // upstream URL.
+    res.setHeader('Content-Disposition', `attachment; filename="${youtubeId}.mp4"`);
+    res.setHeader('Cache-Control', 'no-store');
+    return res.redirect(307, chosenFormat.url);
   } catch (err) {
     console.warn(`[ytdl stream exception for ${youtubeId}]:`, err.message);
     if (!res.headersSent) {
