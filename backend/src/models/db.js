@@ -587,8 +587,34 @@ class MongoDatabase {
 
   async deleteChild(id) {
     const db = await this.getDb();
-    await db.collection('children').deleteOne({ _id: String(id) });
-    await db.collection('watchTimeRecords').deleteMany({ childId: String(id) });
+    const childIdStr = String(id);
+    await db.collection('children').deleteOne({ _id: childIdStr });
+    await db.collection('watchTimeRecords').deleteMany({ childId: childIdStr });
+    await db.collection('sessions').deleteMany({ childId: childIdStr });
+
+    // Cascade delete content assigned exclusively to this child
+    for (const collName of ['videos', 'channels', 'playlists']) {
+      try {
+        const exclusiveItems = await db.collection(collName).find({
+          $or: [
+            { childIds: [childIdStr] },
+            { childIds: { $size: 1, $all: [childIdStr] } }
+          ]
+        }).toArray();
+        if (exclusiveItems.length > 0) {
+          const exclusiveIds = exclusiveItems.map((item) => item._id);
+          await db.collection(collName).deleteMany({ _id: { $in: exclusiveIds } });
+        }
+
+        // For content with multiple children assigned, remove this childId
+        await db.collection(collName).updateMany(
+          { childIds: childIdStr },
+          { $pull: { childIds: childIdStr } }
+        );
+      } catch (err) {
+        console.warn(`[db.deleteChild] Error cleaning ${collName} for child ${childIdStr}:`, err.message);
+      }
+    }
     return true;
   }
 
