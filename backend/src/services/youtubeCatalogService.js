@@ -70,19 +70,31 @@ function formatDuration(duration = '') {
 }
 
 async function getVideoMetadata(videoIds) {
-  if (videoIds.length === 0) return [];
-  const data = await request('videos', {
-    part: 'snippet,contentDetails',
-    id: videoIds.slice(0, 50).join(',')
-  });
-  return data.items.map((item) => ({
-    youtubeId: item.id,
-    title: item.snippet.title,
-    channelTitle: item.snippet.channelTitle,
-    thumbnailUrl: thumbnailFrom(item.snippet.thumbnails),
-    durationText: formatDuration(item.contentDetails.duration),
-    description: item.snippet.description || ''
-  }));
+  if (!videoIds || videoIds.length === 0) return [];
+  const results = [];
+  const CHUNK_SIZE = 50;
+
+  for (let i = 0; i < videoIds.length; i += CHUNK_SIZE) {
+    const chunk = videoIds.slice(i, i + CHUNK_SIZE);
+    const data = await request('videos', {
+      part: 'snippet,contentDetails',
+      id: chunk.join(',')
+    });
+    if (data.items) {
+      for (const item of data.items) {
+        results.push({
+          youtubeId: item.id,
+          title: item.snippet.title,
+          channelTitle: item.snippet.channelTitle,
+          thumbnailUrl: thumbnailFrom(item.snippet.thumbnails),
+          durationText: formatDuration(item.contentDetails.duration),
+          description: item.snippet.description || ''
+        });
+      }
+    }
+  }
+
+  return results;
 }
 
 async function getChannel(identifier) {
@@ -125,27 +137,33 @@ async function getPlaylist(playlistId) {
   return playlist;
 }
 
-async function getPlaylistVideoIds(playlistId) {
-  const data = await request('playlistItems', {
-    part: 'contentDetails',
-    playlistId,
-    maxResults: '50'
-  });
-  return data.items
-    .map((item) => item.contentDetails?.videoId)
-    .filter(Boolean);
+async function getPlaylistVideoIds(playlistId, maxVideos = 500) {
+  let videoIds = [];
+  let pageToken = undefined;
+
+  do {
+    const params = {
+      part: 'contentDetails',
+      playlistId,
+      maxResults: '50'
+    };
+    if (pageToken) {
+      params.pageToken = pageToken;
+    }
+    const data = await request('playlistItems', params);
+    const ids = (data.items || [])
+      .map((item) => item.contentDetails?.videoId)
+      .filter(Boolean);
+    videoIds = videoIds.concat(ids);
+    pageToken = data.nextPageToken;
+  } while (pageToken && videoIds.length < maxVideos);
+
+  return videoIds;
 }
 
-async function getChannelVideos(uploadsPlaylistId) {
+async function getChannelVideos(uploadsPlaylistId, maxVideos = 500) {
   if (!uploadsPlaylistId) return [];
-  const data = await request('playlistItems', {
-    part: 'contentDetails',
-    playlistId: uploadsPlaylistId,
-    maxResults: '50'
-  });
-  return data.items
-    .map((item) => item.contentDetails?.videoId)
-    .filter(Boolean);
+  return getPlaylistVideoIds(uploadsPlaylistId, maxVideos);
 }
 
 module.exports = {
