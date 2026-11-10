@@ -322,8 +322,53 @@ async function moderateContentHandler(req, res, next) {
     }
 
     if (type === 'channel') {
-      if (action === 'REMOVE') await db.deleteChannel(id);
-      else await db.updateChannel(id, { status: CONTENT_STATUS.BLOCKED });
+      if (action === 'REMOVE') {
+        const dbInstance = await db.getDb();
+        const existingChannel = (await db.findChannelById(id)) ||
+          (await dbInstance.collection('channels').findOne({
+            $or: [{ _id: String(id) }, { id: String(id) }, { channelId: String(id) }]
+          }));
+
+        const removed = await db.deleteChannel(id, { scope: 'all' });
+        if (!removed && !existingChannel) {
+          return res.status(404).json({ success: false, error: 'Channel not found' });
+        }
+
+        const channelToPurge = existingChannel || {};
+        const titleToPurge = channelToPurge.title ? channelToPurge.title.trim() : null;
+        const channelIdToPurge = channelToPurge.channelId || id;
+
+        const orConditions = [];
+        if (titleToPurge) {
+          const escaped = titleToPurge.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          orConditions.push({ channelTitle: { $regex: new RegExp(`^${escaped}$`, 'i') } });
+          orConditions.push({ channelTitle: titleToPurge });
+        }
+        if (channelIdToPurge) {
+          orConditions.push({ channelId: String(channelIdToPurge) });
+        }
+        if (orConditions.length > 0) {
+          await dbInstance.collection('videos').deleteMany({ $or: orConditions });
+        }
+      } else {
+        const updated = await db.updateChannel(id, { status: CONTENT_STATUS.BLOCKED });
+        if (!updated) {
+          return res.status(404).json({ success: false, error: 'Channel not found' });
+        }
+        const orConditions = [];
+        if (updated.title) {
+          const escaped = updated.title.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          orConditions.push({ channelTitle: { $regex: new RegExp(`^${escaped}$`, 'i') } });
+          orConditions.push({ channelTitle: updated.title.trim() });
+        }
+        if (updated.channelId) {
+          orConditions.push({ channelId: String(updated.channelId) });
+        }
+        if (orConditions.length > 0) {
+          const dbInstance = await db.getDb();
+          await dbInstance.collection('videos').updateMany({ $or: orConditions }, { $set: { status: CONTENT_STATUS.BLOCKED } });
+        }
+      }
     } else if (type === 'playlist') {
       if (action === 'REMOVE') await db.deletePlaylist(id);
       else await db.updatePlaylist(id, { status: CONTENT_STATUS.BLOCKED });
