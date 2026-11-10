@@ -1,6 +1,7 @@
 const contentService = require('../services/contentService');
 const db = require('../models/db');
 const fs = require('node:fs');
+const path = require('node:path');
 
 async function resolveParentId(req) {
   if (req.user) {
@@ -226,10 +227,23 @@ function getYtdl() {
   if (!ytdlInstance) {
     const ytdl = require('@distube/ytdl-core');
     let rawCookie = process.env.YT_COOKIE;
-    const cookieFile = process.env.YT_COOKIE_FILE?.trim();
+    const cookieFile = process.env.YT_COOKIE_FILE?.trim() || 'cookies.txt';
     if (!rawCookie && cookieFile) {
       try {
-        rawCookie = fs.readFileSync(cookieFile, 'utf8');
+        const candidatePaths = [
+          cookieFile,
+          path.resolve(process.cwd(), cookieFile),
+          path.resolve(__dirname, '../../', cookieFile),
+          path.resolve(__dirname, '..', cookieFile),
+          path.resolve(__dirname, '../../cookies.txt'),
+          'C:\\Users\\Smart\\Downloads\\cookies.txt'
+        ];
+        for (const cp of candidatePaths) {
+          if (fs.existsSync(cp)) {
+            rawCookie = fs.readFileSync(cp, 'utf8');
+            break;
+          }
+        }
       } catch (error) {
         console.warn(`[YouTube] Unable to read YT_COOKIE_FILE: ${error.message}`);
       }
@@ -266,14 +280,14 @@ async function streamVideo(req, res) {
     const client = getYtdl();
     let info;
     let lastInfoError;
-    for (let attempt = 0; attempt < 5; attempt += 1) {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
         info = await client.getInfo(youtubeId);
         break;
       } catch (error) {
         lastInfoError = error;
-        if (attempt < 4) {
-          await wait(Math.min(4000, 750 * (attempt + 1)));
+        if (attempt < 2) {
+          await wait(400 * (attempt + 1));
         }
       }
     }
@@ -281,13 +295,14 @@ async function streamVideo(req, res) {
       throw lastInfoError || new Error('Unable to resolve YouTube video stream');
     }
 
-    // Prioritize format 18 (360p MP4 muxed with video and audio) or any muxed audio+video format
+    // Prioritize format 18 (360p MP4 muxed with video and audio) or any playable muxed audio+video format
     const chosenFormat =
-      info.formats.find((f) => f.itag === 18 && f.hasAudio && f.hasVideo) ||
-      info.formats.find((f) => f.itag === 18) ||
-      info.formats.find((f) => f.hasVideo && f.hasAudio && f.container === 'mp4') ||
-      info.formats.find((f) => f.hasVideo && f.hasAudio) ||
-      info.formats.find((f) => f.container === 'mp4');
+      info.formats.find((f) => f.itag === 18 && f.hasAudio && f.hasVideo && f.url) ||
+      info.formats.find((f) => f.itag === 18 && f.url) ||
+      info.formats.find((f) => f.hasVideo && f.hasAudio && f.container === 'mp4' && f.url) ||
+      info.formats.find((f) => f.hasVideo && f.hasAudio && f.url) ||
+      info.formats.find((f) => f.container === 'mp4' && f.url) ||
+      info.formats.find((f) => f.url);
 
     if (!chosenFormat) {
       console.warn(`[streamVideo] No playable format found for ${youtubeId}`);
@@ -301,11 +316,9 @@ async function streamVideo(req, res) {
       });
     }
 
-    // Do not proxy the complete media stream through Hostinger. Long-running
-    // proxied streams can be terminated by the hosting layer and leave the
-    // native downloader with a partial file. The signed CDN URL is freshly
-    // resolved for every request, so retries and Range requests get a fresh
-    // upstream URL.
+    // Do not proxy the complete media stream through Hostinger.
+    // The signed CDN URL is freshly resolved for every request,
+    // so retries and Range requests get a fresh upstream URL.
     res.setHeader('Content-Disposition', `attachment; filename="${youtubeId}.mp4"`);
     res.setHeader('Cache-Control', 'no-store');
     return res.redirect(307, chosenFormat.url);
